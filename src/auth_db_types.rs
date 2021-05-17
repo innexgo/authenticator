@@ -1,8 +1,6 @@
-use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
-use std::sync::Mutex;
-
-pub type Db = Mutex<Connection>;
+use auth_service_api::PasswordKind;
+use auth_service_api::ApiKeyKind;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct VerificationChallenge {
@@ -29,17 +27,6 @@ pub struct PasswordReset {
   creator_user_id: u64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-enum PasswordKind {
-  Change {
-    password_hash: String,
-  },
-  Reset {
-    password_hash: String,
-    password_reset_key_hash: String,
-  },
-  Cancel,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Password {
@@ -47,14 +34,11 @@ pub struct Password {
   creation_time: u64,
   creator_user_id: u64,
   user_id: u64,
-  kind: PasswordKind,
+  password_kind: PasswordKind,
+  password_hash: String,
+  password_reset_key_hash: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum ApiKeyKind {
-  Valid,
-  Cancel,
-}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ApiKey {

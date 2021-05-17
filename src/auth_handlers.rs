@@ -1,11 +1,84 @@
-pub fn new_api_key_valid() {}
+use super::log_service::*;
+use super::Db;
+use auth_service_api::*;
+use std::convert::Infallible;
 
-pub fn new_api_key_cancel() {}
+// This type represents errors that we can generate
+// These will be automatically converted to a proper string later
+#[derive(Debug)]
+pub struct AuthErrorRejection(pub AuthError);
+impl warp::reject::Reject for AuthErrorRejection{}
 
-pub fn new_verification_challenge() {}
+fn auth_error(auth_error:AuthError) -> warp::reject::Rejection {
+  warp::reject::custom(AuthErrorRejection(AuthError::API_KEY_UNAUTHORIZED))
+}
 
-pub fn new_user() {}
+pub async fn api_key_new_valid(
+  db: Db,
+  ls: LogService,
+  props: ApiKeyNewValidProps,
+) -> Result<impl warp::Reply, warp::reject::Rejection> {
 
-pub fn new_password_reset() {}
-pub fn new_password_change() {}
-pub fn new_password_cancel() {}
+}
+
+
+pub async fn api_key_new_cancel(
+  db: Db,
+  ls: LogService,
+  props: ApiKeyNewCancelProps,
+) -> Result<impl warp::Reply, Infallible> {
+}
+pub async fn verification_challenge_new(
+  db: Db,
+  ls: LogService,
+  props: VerificationChallengeNewProps,
+) -> Result<impl warp::Reply, Infallible> {
+}
+pub async fn user_new(
+  db: Db,
+  ls: LogService,
+  props: UserNewProps,
+) -> Result<impl warp::Reply, Infallible> {
+}
+pub async fn password_reset_new(
+  db: Db,
+  ls: LogService,
+  props: PasswordResetNewProps,
+) -> Result<impl warp::Reply, Infallible> {
+}
+pub async fn password_new_reset(
+  db: Db,
+  ls: LogService,
+  props: PasswordNewResetProps,
+) -> Result<impl warp::Reply, Infallible> {
+}
+pub async fn password_new_change(
+  db: Db,
+  ls: LogService,
+  props: PasswordNewChangeProps,
+) -> Result<impl warp::Reply, Infallible> {
+}
+pub async fn password_new_cancel(
+  db: Db,
+  ls: LogService,
+  props: PasswordNewCancelProps,
+) -> Result<impl warp::Reply, Infallible> {
+}
+pub async fn user_view(
+  db: Db,
+  ls: LogService,
+  props: PasswordNewCancelProps,
+) -> Result<impl warp::Reply, Infallible> {
+}
+pub async fn password_view(
+  db: Db,
+  ls: LogService,
+  props: PasswordNewCancelProps,
+) -> Result<impl warp::Reply, Infallible> {
+}
+pub async fn api_key_view(
+  db: Db,
+  ls: LogService,
+  props: PasswordNewCancelProps,
+) -> Result<impl warp::Reply, Infallible> {
+}

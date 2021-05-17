@@ -1,11 +1,15 @@
+#![feature(async_closure)]
 use clap::Clap;
 use rusqlite::Connection;
 use std::sync::Mutex;
+use std::sync::Arc;
 
-mod auth_model;
+
 mod auth_api;
 mod auth_handlers;
-mod log_service;
+mod auth_db_types;
+
+mod user_service;
 
 static SERVICE_NAME: &str = "auth-api";
 
@@ -24,6 +28,7 @@ struct Opts {
   verbose: u32,
 }
 
+pub type Db = Arc<Mutex<Connection>>;
 
 #[tokio::main]
 async fn main() {
@@ -37,7 +42,7 @@ async fn main() {
 
   let logger = log_service::LogService::new(&log_service_url, SERVICE_NAME);
 
-  let db:auth_model::Db = Mutex::new(Connection::open(database_url).unwrap());
+  let db:Db = Arc::new(Mutex::new(Connection::open(database_url).unwrap()));
 
   let api = auth_api::api(db, logger);
 
