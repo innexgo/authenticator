@@ -30,6 +30,8 @@ version = "0.1.0"
 dependencies = [
  "auth-service-api",
  "clap",
+ "log-service-api",
+ "rand 0.8.3",
  "reqwest",
  "rusqlite",
  "serde",
@@ -580,6 +582,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
 dependencies = [
  "cfg-if",
+]
+
+[[package]]
+name = "log-service-api"
+version = "0.2.0"
+source = "git+https://github.com/innexgo/log-service-api#9c222978a98848ec0a72a5d1b2ef4d4babed3171"
+dependencies = [
+ "reqwest",
+ "serde",
+ "strum",
+ "tokio",
 ]
 
 [[package]]

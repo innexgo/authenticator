@@ -1,11 +1,11 @@
 use super::auth_handlers;
-use super::log_service::LogService;
 use super::Db;
 use super::SERVICE_NAME;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use warp::Filter;
 use warp::http::StatusCode;
+use log_service_api::client::LogService;
 
 /// The function that will show all ones to call
 pub fn api(

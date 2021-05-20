@@ -1,15 +1,21 @@
 #![feature(async_closure)]
 use clap::Clap;
 use rusqlite::Connection;
-use std::sync::Mutex;
 use std::sync::Arc;
+use std::sync::Mutex;
 
+use log_service_api::client::LogService;
+
+mod utils;
 
 mod auth_api;
-mod auth_handlers;
 mod auth_db_types;
+mod auth_handlers;
 
+// database interface
+mod api_key_service;
 mod user_service;
+mod verification_challenge_service;
 
 static SERVICE_NAME: &str = "auth-api";
 
@@ -40,9 +46,9 @@ async fn main() {
     verbose,
   } = Opts::parse();
 
-  let logger = log_service::LogService::new(&log_service_url, SERVICE_NAME);
+  let logger = LogService::new(&log_service_url, SERVICE_NAME);
 
-  let db:Db = Arc::new(Mutex::new(Connection::open(database_url).unwrap()));
+  let db: Db = Arc::new(Mutex::new(Connection::open(database_url).unwrap()));
 
   let api = auth_api::api(db, logger);
 

@@ -1,7 +1,7 @@
-use super::log_service::*;
 use super::Db;
 use auth_service_api::*;
 use std::convert::Infallible;
+use log_service_api::client::LogService;
 
 // This type represents errors that we can generate
 // These will be automatically converted to a proper string later
