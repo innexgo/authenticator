@@ -16,6 +16,8 @@ mod auth_handlers;
 mod api_key_service;
 mod user_service;
 mod verification_challenge_service;
+mod password_reset_service;
+mod password_service;
 
 static SERVICE_NAME: &str = "auth-api";
 

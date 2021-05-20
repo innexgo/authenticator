@@ -41,8 +41,8 @@ dependencies = [
 
 [[package]]
 name = "auth-service-api"
-version = "0.4.0"
-source = "git+https://github.com/innexgo/auth-service-api#b7f91d2e9b43b50bbe549a219ab9bf6d5e22375e"
+version = "0.7.0"
+source = "git+https://github.com/innexgo/auth-service-api#fe396c885bb202a98c81237a6eaeaccdbdca734f"
 dependencies = [
  "serde",
  "strum",

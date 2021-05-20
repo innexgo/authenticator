@@ -41,6 +41,7 @@ pub struct Password {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ApiKey {
   pub api_key_id: i64,
+  pub creation_time: i64,
   pub creator_user_id: i64,
   pub api_key_hash: String,
   pub api_key_kind: ApiKeyKind,
