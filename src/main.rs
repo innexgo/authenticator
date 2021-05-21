@@ -2,7 +2,9 @@
 use clap::Clap;
 use rusqlite::Connection;
 use std::sync::Arc;
-use std::sync::Mutex;
+//use std::sync::Mutex;
+
+use tokio::sync::Mutex;
 
 use log_service_api::client::LogService;
 

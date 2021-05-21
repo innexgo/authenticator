@@ -62,6 +62,14 @@ pub fn get_by_user_id(con: &mut Connection, user_id: i64) -> Result<Option<User>
     .optional()
 }
 
+pub fn get_by_user_email(con: &mut Connection, user_email: &str) -> Result<Option<User>, rusqlite::Error> {
+  let sql = "SELECT * FROM user WHERE email=?";
+  con
+    .query_row(sql, params![user_email], |row| row.try_into())
+    .optional()
+}
+
+
 pub fn exists_by_email(con: &mut Connection, email: &str) -> Result<bool, rusqlite::Error> {
   let sql = "SELECT count(*) FROM user WHERE email=?";
   let count: i64 = con.query_row(sql, params![email], |row| row.get(0))?;
@@ -87,14 +95,7 @@ pub fn exists_by_verification_challenge_key_hash(
 
 pub fn query(
   con: &mut Connection,
-  user_id: Option<i64>,
-  creation_time: Option<i64>,
-  min_creation_time: Option<i64>,
-  max_creation_time: Option<i64>,
-  name: Option<&str>,
-  email: Option<&str>,
-  offset: u64,
-  count: u64,
+  props: auth_service_api::UserViewProps
 ) -> Result<Vec<User>, rusqlite::Error> {
   let sql = [
     "SELECT u.* FROM user u WHERE 1 = 1",
@@ -113,14 +114,14 @@ pub fn query(
 
   let results = stmnt
     .query(named_params! {
-        "user_id": user_id,
-        "creation_time": creation_time,
-        "min_creation_time": min_creation_time,
-        "max_creation_time": max_creation_time,
-        "name": name,
-        "email": email,
-        "offset": offset,
-        "count": offset,
+        "user_id": props.user_id,
+        "creation_time": props.creation_time,
+        "min_creation_time": props.min_creation_time,
+        "max_creation_time": props.max_creation_time,
+        "name": props.user_name,
+        "email": props.user_email,
+        "offset": props.offset,
+        "count": props.offset,
     })?
     .and_then(|row| row.try_into())
     .filter_map(|x: Result<User, rusqlite::Error>| x.ok());

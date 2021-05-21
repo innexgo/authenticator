@@ -9,26 +9,34 @@ fn next_id(con: &mut Connection) -> Result<i64, rusqlite::Error> {
   con.query_row(sql, [], |row| row.get(0))
 }
 
-
 impl TryFrom<&rusqlite::Row<'_>> for Password {
   type Error = rusqlite::Error;
 
   // select * from password order only, otherwise it will fail
   fn try_from(row: &rusqlite::Row) -> Result<Password, rusqlite::Error> {
-      Ok(Password {
-        password_id: row.get(0)?,
-        creation_time: row.get(1)?,
-        creator_user_id: row.get(2)?,
+    Ok(Password {
+      password_id: row.get(0)?,
+      creation_time: row.get(1)?,
+      creator_user_id: row.get(2)?,
+      user_id: row.get(3)?,
       password_kind: row
-        .get::<_, u8>(3)?
+        .get::<_, u8>(4)?
         .try_into()
-        .map_err(|x| rusqlite::Error::IntegralValueOutOfRange(3, x))?,
-        verification_challenge_key_hash: row.get(4)?,
-      })
-    }
+        .map_err(|x| rusqlite::Error::IntegralValueOutOfRange(4, x as i64))?,
+      password_hash: row.get(5)?,
+      password_reset_key_hash: row.get(6)?,
+    })
+  }
 }
 
-pub fn add(con: &mut Connection, v: VerificationChallenge) -> Result<Password, rusqlite::Error> {
+pub fn add(
+  con: &mut Connection,
+  creator_user_id: i64,
+  user_id: i64,
+  password_kind: auth_service_api::PasswordKind,
+  password_hash: String,
+  password_reset_key_hash: String,
+) -> Result<Password, rusqlite::Error> {
   let sp = con.savepoint()?;
   let password_id = next_id(&mut sp)?;
   let creation_time = current_time_millis();
@@ -54,61 +62,71 @@ pub fn add(con: &mut Connection, v: VerificationChallenge) -> Result<Password, r
   Ok(Password {
     password_id,
     creation_time,
-    name: v.name,
-    email: v.email,
-    verification_challenge_key_hash: v.verification_challenge_key_hash,
+    creator_user_id,
+    user_id,
+    password_kind,
+    password_hash,
+    password_reset_key_hash,
   })
 }
 
-pub fn get_by_password_id(con: &mut Connection, password_id: i64) -> Result<Option<Password>, rusqlite::Error> {
-  let sql = "SELECT * FROM password WHERE password_id=?";
+pub fn get_by_password_id(
+  con: &mut Connection,
+  password_id: i64,
+) -> Result<Option<Password>, rusqlite::Error> {
+  let sql = "SELECT * FROM password WHERE user_id=? ORDER BY password_id DESC LIMIT 1";
   con
     .query_row(sql, params![password_id], |row| row.try_into())
     .optional()
 }
 
-pub fn exists_by_email(con: &mut Connection, email: &str) -> Result<bool, rusqlite::Error> {
-  let sql = "SELECT count(*) FROM password WHERE email=?";
-  let count: i64 = con.query_row(sql, params![email], |row| row.get(0))?;
-  Ok(count != 0)
+pub fn get_by_user_id(
+  con: &mut Connection,
+  user_id: i64,
+) -> Result<Option<Password>, rusqlite::Error> {
+  let sql = "SELECT * FROM password WHERE user_id=?";
+  con
+    .query_row(sql, params![user_id], |row| row.try_into())
+    .optional()
 }
 
-pub fn exists_by_password_id(con: &mut Connection, password_id: i64) -> Result<bool, rusqlite::Error> {
+pub fn exists_by_password_id(
+  con: &mut Connection,
+  password_id: i64,
+) -> Result<bool, rusqlite::Error> {
   let sql = "SELECT count(*) FROM password WHERE password_id=?";
   let count: i64 = con.query_row(sql, params![password_id], |row| row.get(0))?;
   Ok(count != 0)
 }
 
-pub fn exists_by_verification_challenge_key_hash(
+pub fn exists_by_password_reset_key_hash(
   con: &mut Connection,
-  verification_challenge_key_hash: &str,
+  password_reset_key_hash: &str,
 ) -> Result<bool, rusqlite::Error> {
-  let sql = "SELECT count(*) FROM password WHERE verification_challenge_key_hash=?";
-  let count: i64 = con.query_row(sql, params![verification_challenge_key_hash], |row| {
-    row.get(0)
-  })?;
+  let sql = "SELECT count(*) FROM password WHERE password_reset_key_hash=?";
+  let count: i64 = con.query_row(sql, params![password_reset_key_hash], |row| row.get(0))?;
   Ok(count != 0)
 }
 
 pub fn query(
   con: &mut Connection,
-  password_id: Option<i64>,
-  creation_time: Option<i64>,
-  min_creation_time: Option<i64>,
-  max_creation_time: Option<i64>,
-  name: Option<&str>,
-  email: Option<&str>,
-  offset: u64,
-  count: u64,
+  props: auth_service_api::PasswordViewProps,
 ) -> Result<Vec<Password>, rusqlite::Error> {
   let sql = [
-    "SELECT u.* FROM password u WHERE 1 = 1",
-    " AND (:password_id       == NULL OR u.password_id = :password_id)",
-    " AND (:creation_time == NULL OR u.creation_time = :creation_time)",
-    " AND (:creation_time == NULL OR u.creation_time > :min_creation_time)",
-    " AND (:creation_time == NULL OR u.creation_time > :max_creation_time)",
-    " AND (:name          == NULL OR u.name = :name)",
-    " AND (:email         == NULL OR u.email = :email)",
+
+    "SELECT a.* FROM api_key a",
+    if props.only_recent {
+        " INNER JOIN (SELECT max(api_key_id) id FROM api_key GROUP BY api_key_hash) maxids ON maxids.id = a.api_key_id"
+    } else {
+        ""
+    },
+    " AND (:password_id     == NULL OR p.password_id = :password_id)",
+    " AND (:creation_time   == NULL OR p.creation_time = :creation_time)",
+    " AND (:creation_time   == NULL OR p.creation_time > :min_creation_time)",
+    " AND (:creation_time   == NULL OR p.creation_time > :max_creation_time)",
+    " AND (:creator_user_id == NULL OR p.creator_user_id = :creator_user_id)",
+    " AND (:user_id         == NULL OR p.user_id = :user_id)",
+    " AND (:password_kind   == NULL OR p.password_kind = :password_kind)",
     " ORDER BY u.password_id",
     " LIMIT :offset, :count",
   ]
@@ -118,14 +136,15 @@ pub fn query(
 
   let results = stmnt
     .query(named_params! {
-        "password_id": password_id,
-        "creation_time": creation_time,
-        "min_creation_time": min_creation_time,
-        "max_creation_time": max_creation_time,
-        "name": name,
-        "email": email,
-        "offset": offset,
-        "count": offset,
+        "password_id": props.password_id,
+        "creation_time": props.creation_time,
+        "min_creation_time": props.min_creation_time,
+        "max_creation_time": props.max_creation_time,
+        "creator_user_id": props.creator_user_id,
+        "user_id": props.user_id,
+        "password_kind": props.password_kind.map(|x| x as u8),
+        "offset": props.offset,
+        "count": props.offset,
     })?
     .and_then(|row| row.try_into())
     .filter_map(|x: Result<Password, rusqlite::Error>| x.ok());

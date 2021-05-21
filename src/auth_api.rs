@@ -1,11 +1,11 @@
 use super::auth_handlers;
 use super::Db;
 use super::SERVICE_NAME;
+use log_service_api::client::LogService;
 use std::collections::HashMap;
 use std::convert::Infallible;
-use warp::Filter;
 use warp::http::StatusCode;
-use log_service_api::client::LogService;
+use warp::Filter;
 
 /// The function that will show all ones to call
 pub fn api(
@@ -25,7 +25,7 @@ pub fn api(
     .recover(handle_rejection)
 }
 
- fn api_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn api_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   let mut info = HashMap::new();
   info.insert("version", "0.1");
   info.insert("name", SERVICE_NAME);
@@ -33,147 +33,198 @@ pub fn api(
 }
 
 // lets you pass in an arbitrary parameter
-fn with_T<T: Clone + Send>(
-  t: T,
-) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
+fn with_T<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
   warp::any().map(move || t.clone())
 }
 
- fn api_key_new_valid(
+fn api_key_new_valid(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("api_key/new_valid")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::api_key_new_valid(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::api_key_new_valid(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
 
- fn api_key_new_cancel(
+fn api_key_new_cancel(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("api_key/new_cancel")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::api_key_new_cancel(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::api_key_new_cancel(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
 
- fn verification_challenge_new(
+fn verification_challenge_new(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("verification_challenge/new")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::verification_challenge_new(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::verification_challenge_new(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
 
- fn user_new(
+fn user_new(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("user/new")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::user_new(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::user_new(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
 
- fn password_reset_new(
+fn password_reset_new(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("password_reset/new")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::password_reset_new(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::password_reset_new(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
 
- fn password_new_reset(
+fn password_new_reset(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("password/new_reset")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::password_new_reset(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::password_new_reset(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
 
- fn password_new_change(
+fn password_new_change(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("password/new_change")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::password_new_change(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::password_new_change(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
 
- fn password_new_cancel(
+fn password_new_cancel(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("password/new_cancel")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::password_new_cancel(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::password_new_cancel(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
 
- fn user_view(
+fn user_view(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("user/view")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::user_view(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::user_view(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
 
- fn password_view(
+fn password_view(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("password/view")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::password_view(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::password_view(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
 
- fn api_key_view(
+fn api_key_view(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("api_key/view")
     .and(with_T((db, ls)))
     .and(warp::body::json())
-    .and_then(|(db, ls), props| auth_handlers::api_key_view(db, ls, props))
+    .and_then(async move |(db, ls), props| {
+      auth_handlers::api_key_view(db, ls, props)
+        .await
+        .map_err(auth_error)
+    })
 }
-
 
 // This function receives a `Rejection` and tries to return a custom
 // value, otherwise simply passes the rejection along.
 async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, Infallible> {
-    let code;
-    let message;
+  let code;
+  let message;
 
-    if err.is_not_found() {
-        code = StatusCode::NOT_FOUND;
-        message = "NOT_FOUND";
-    } else if let Some(e) = err.find::<warp::filters::body::BodyDeserializeError>() {
-        message = "BAD_REQUEST";
-        code = StatusCode::BAD_REQUEST;
-    } else if let Some(_) = err.find::<warp::reject::MethodNotAllowed>() {
-        code = StatusCode::METHOD_NOT_ALLOWED;
-        message = "METHOD_NOT_ALLOWED";
-    } else if let Some(auth_handlers::AuthErrorRejection(auth_error)) = err.find() {
-        code = StatusCode::BAD_REQUEST;
-        message = auth_error.as_ref();
-    } else {
-        // We should have expected this... Just log and say its a 500
-        eprintln!("unhandled rejection: {:?}", err);
-        code = StatusCode::INTERNAL_SERVER_ERROR;
-        message = "UNKNOWN";
-    }
+  if err.is_not_found() {
+    code = StatusCode::NOT_FOUND;
+    message = "NOT_FOUND";
+  } else if let Some(e) = err.find::<warp::filters::body::BodyDeserializeError>() {
+    message = "BAD_REQUEST";
+    code = StatusCode::BAD_REQUEST;
+  } else if let Some(_) = err.find::<warp::reject::MethodNotAllowed>() {
+    code = StatusCode::METHOD_NOT_ALLOWED;
+    message = "METHOD_NOT_ALLOWED";
+  } else if let Some(AuthErrorRejection(auth_error)) = err.find() {
+    code = StatusCode::BAD_REQUEST;
+    message = auth_error.as_ref();
+  } else {
+    // We should have expected this... Just log and say its a 500
+    eprintln!("unhandled rejection: {:?}", err);
+    code = StatusCode::INTERNAL_SERVER_ERROR;
+    message = "UNKNOWN";
+  }
 
-    Ok(warp::reply::with_status(format!("\"{}\"", message), code))
+  Ok(warp::reply::with_status(format!("\"{}\"", message), code))
+}
+
+// This type represents errors that we can generate
+// These will be automatically converted to a proper string later
+#[derive(Debug)]
+pub struct AuthErrorRejection(pub auth_service_api::AuthError);
+impl warp::reject::Reject for AuthErrorRejection {}
+
+fn auth_error(auth_error: auth_service_api::AuthError) -> warp::reject::Rejection {
+  warp::reject::custom(AuthErrorRejection(auth_error))
 }
