@@ -79,7 +79,7 @@ pub fn get_by_api_key_id(
 
 pub fn get_by_api_key_hash(
   con: &mut Connection,
-  api_key_hash: String,
+  api_key_hash: &str,
 ) -> Result<Option<ApiKey>, rusqlite::Error> {
   let sql = "SELECT * FROM api_key WHERE api_key_hash=? ORDER BY api_key_id DESC LIMIT 1";
   con

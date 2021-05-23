@@ -1,8 +1,7 @@
 use auth_service_api::ApiKeyKind;
 use auth_service_api::PasswordKind;
-use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct VerificationChallenge {
   pub verification_challenge_key_hash: String,
   pub creation_time: i64,
@@ -11,7 +10,7 @@ pub struct VerificationChallenge {
   pub password_hash: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct User {
   pub user_id: i64,
   pub creation_time: i64,
@@ -20,14 +19,14 @@ pub struct User {
   pub verification_challenge_key_hash: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct PasswordReset {
   pub password_reset_key_hash: String,
   pub creation_time: i64,
   pub creator_user_id: i64,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct Password {
   pub password_id: i64,
   pub creation_time: i64,
@@ -38,7 +37,7 @@ pub struct Password {
   pub password_reset_key_hash: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug)]
 pub struct ApiKey {
   pub api_key_id: i64,
   pub creation_time: i64,

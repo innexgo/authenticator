@@ -2,6 +2,8 @@ use super::Db;
 use auth_service_api::*;
 use log_service_api::client::LogService;
 
+use super::utils;
+use super::auth_db_types::*;
 use super::api_key_service;
 use super::password_reset_service;
 use super::password_service;
@@ -52,6 +54,15 @@ pub async fn api_key_new_cancel(
   ls: LogService,
   props: ApiKeyNewCancelProps,
 ) -> Result<impl warp::Reply, AuthError> {
+  let con = &mut *db.lock().await;
+
+  let maybe_api_key = api_key_service::get_by_api_key_hash(con, &utils::hash_str(&props.api_key));
+  let creator_api_key = report_unk_err(&ls, maybe_api_key)
+    .await?
+    .ok_or(AuthError::API_KEY_NONEXISTENT);
+
+  if creator_api_key.
+
 }
 pub async fn verification_challenge_new(
   db: Db,
