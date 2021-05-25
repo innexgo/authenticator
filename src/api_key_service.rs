@@ -4,7 +4,7 @@ use rusqlite::{named_params, params, Connection, OptionalExtension};
 use std::convert::{TryFrom, TryInto};
 
 // returns the max api_key id and adds 1 to it
-fn next_id(con: &mut Connection) -> Result<i64, rusqlite::Error> {
+fn next_id(con: &Connection) -> Result<i64, rusqlite::Error> {
   let sql = "SELECT max(api_key_id) FROM api_key";
   con.query_row(sql, [], |row| row.get(0))
 }
@@ -30,10 +30,10 @@ impl TryFrom<&rusqlite::Row<'_>> for ApiKey {
 }
 
 pub fn add(
-  con: &mut Connection,
+  con: &Connection,
   creator_user_id: i64,
   api_key_hash: String,
-  api_key_kind: auth_service_api::ApiKeyKind,
+  api_key_kind: auth_service_api::request::ApiKeyKind,
   duration: i64,
 ) -> Result<ApiKey, rusqlite::Error> {
   let sp = con.savepoint()?;
@@ -68,7 +68,7 @@ pub fn add(
 }
 
 pub fn get_by_api_key_id(
-  con: &mut Connection,
+  con: &Connection,
   api_key_id: i64,
 ) -> Result<Option<ApiKey>, rusqlite::Error> {
   let sql = "SELECT * FROM api_key WHERE api_key_id=?";
@@ -78,7 +78,7 @@ pub fn get_by_api_key_id(
 }
 
 pub fn get_by_api_key_hash(
-  con: &mut Connection,
+  con: &Connection,
   api_key_hash: &str,
 ) -> Result<Option<ApiKey>, rusqlite::Error> {
   let sql = "SELECT * FROM api_key WHERE api_key_hash=? ORDER BY api_key_id DESC LIMIT 1";
@@ -88,8 +88,8 @@ pub fn get_by_api_key_hash(
 }
 
 pub fn query(
-  con: &mut Connection,
-  props: auth_service_api::ApiKeyViewProps
+  con: &Connection,
+  props: auth_service_api::request::ApiKeyViewProps
 ) -> Result<Vec<ApiKey>, rusqlite::Error> {
   // TODO prevent getting meaningless duration
 

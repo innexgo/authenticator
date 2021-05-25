@@ -4,7 +4,7 @@ use rusqlite::{named_params, params, Connection, OptionalExtension};
 use std::convert::{TryFrom, TryInto};
 
 // returns the max password id and adds 1 to it
-fn next_id(con: &mut Connection) -> Result<i64, rusqlite::Error> {
+fn next_id(con: &Connection) -> Result<i64, rusqlite::Error> {
   let sql = "SELECT max(password_id) FROM password";
   con.query_row(sql, [], |row| row.get(0))
 }
@@ -30,10 +30,10 @@ impl TryFrom<&rusqlite::Row<'_>> for Password {
 }
 
 pub fn add(
-  con: &mut Connection,
+  con: &Connection,
   creator_user_id: i64,
   user_id: i64,
-  password_kind: auth_service_api::PasswordKind,
+  password_kind: auth_service_api::request::PasswordKind,
   password_hash: String,
   password_reset_key_hash: String,
 ) -> Result<Password, rusqlite::Error> {
@@ -71,7 +71,7 @@ pub fn add(
 }
 
 pub fn get_by_password_id(
-  con: &mut Connection,
+  con: &Connection,
   password_id: i64,
 ) -> Result<Option<Password>, rusqlite::Error> {
   let sql = "SELECT * FROM password WHERE user_id=? ORDER BY password_id DESC LIMIT 1";
@@ -81,7 +81,7 @@ pub fn get_by_password_id(
 }
 
 pub fn get_by_user_id(
-  con: &mut Connection,
+  con: &Connection,
   user_id: i64,
 ) -> Result<Option<Password>, rusqlite::Error> {
   let sql = "SELECT * FROM password WHERE user_id=?";
@@ -91,7 +91,7 @@ pub fn get_by_user_id(
 }
 
 pub fn exists_by_password_id(
-  con: &mut Connection,
+  con: &Connection,
   password_id: i64,
 ) -> Result<bool, rusqlite::Error> {
   let sql = "SELECT count(*) FROM password WHERE password_id=?";
@@ -100,7 +100,7 @@ pub fn exists_by_password_id(
 }
 
 pub fn exists_by_password_reset_key_hash(
-  con: &mut Connection,
+  con: &Connection,
   password_reset_key_hash: &str,
 ) -> Result<bool, rusqlite::Error> {
   let sql = "SELECT count(*) FROM password WHERE password_reset_key_hash=?";
@@ -109,8 +109,8 @@ pub fn exists_by_password_reset_key_hash(
 }
 
 pub fn query(
-  con: &mut Connection,
-  props: auth_service_api::PasswordViewProps,
+  con: &Connection,
+  props: auth_service_api::request::PasswordViewProps,
 ) -> Result<Vec<Password>, rusqlite::Error> {
   let sql = [
 

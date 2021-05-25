@@ -2,8 +2,8 @@ use super::auth_db_types::PasswordReset;
 use super::utils::current_time_millis;
 use rusqlite::{params, Connection, OptionalExtension};
 
-fn add(
-  con: &mut Connection,
+pub fn add(
+  con: &Connection,
   password_reset_key_hash: String,
   creator_user_id: i64,
 ) -> Result<PasswordReset, rusqlite::Error> {
@@ -22,7 +22,7 @@ fn add(
 }
 
 pub fn get_by_password_reset_key_hash(
-  con: &mut Connection,
+  con: &Connection,
   password_reset_key_hash: &str,
 ) -> Result<Option<PasswordReset>, rusqlite::Error> {
   let sql = "SELECT * FROM password_reset WHERE password_reset_key_hash=?";

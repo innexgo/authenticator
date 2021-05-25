@@ -27,11 +27,7 @@ pub fn hash_str(key: &str) -> String {
   base64::encode(result)
 }
 
-pub fn is_email(email: &str) -> bool {
-  email.contains('@') && email.len() > 1
-}
-
-pub fn is_secure(password: &str) -> bool {
+pub fn is_secure_password(password: &str) -> bool {
   let len = password.len();
 
   let numdigits = password.matches(char::is_numeric).count();

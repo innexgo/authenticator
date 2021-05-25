@@ -4,7 +4,7 @@ use rusqlite::{named_params, params, Connection, OptionalExtension};
 use std::convert::{TryFrom, TryInto};
 
 // returns the max user id and adds 1 to it
-fn next_id(con: &mut Connection) -> Result<i64, rusqlite::Error> {
+fn next_id(con: &Connection) -> Result<i64, rusqlite::Error> {
   let sql = "SELECT max(user_id) FROM user";
   con.query_row(sql, [], |row| row.get(0))
 }
@@ -25,7 +25,7 @@ impl TryFrom<&rusqlite::Row<'_>> for User {
     }
 }
 
-pub fn add(con: &mut Connection, v: VerificationChallenge) -> Result<User, rusqlite::Error> {
+pub fn add(con: &Connection, v: VerificationChallenge) -> Result<User, rusqlite::Error> {
   let sp = con.savepoint()?;
   let user_id = next_id(&mut sp)?;
   let creation_time = current_time_millis();
@@ -55,14 +55,14 @@ pub fn add(con: &mut Connection, v: VerificationChallenge) -> Result<User, rusql
   })
 }
 
-pub fn get_by_user_id(con: &mut Connection, user_id: i64) -> Result<Option<User>, rusqlite::Error> {
+pub fn get_by_user_id(con: &Connection, user_id: i64) -> Result<Option<User>, rusqlite::Error> {
   let sql = "SELECT * FROM user WHERE user_id=?";
   con
     .query_row(sql, params![user_id], |row| row.try_into())
     .optional()
 }
 
-pub fn get_by_user_email(con: &mut Connection, user_email: &str) -> Result<Option<User>, rusqlite::Error> {
+pub fn get_by_user_email(con: &Connection, user_email: &str) -> Result<Option<User>, rusqlite::Error> {
   let sql = "SELECT * FROM user WHERE email=?";
   con
     .query_row(sql, params![user_email], |row| row.try_into())
@@ -70,20 +70,20 @@ pub fn get_by_user_email(con: &mut Connection, user_email: &str) -> Result<Optio
 }
 
 
-pub fn exists_by_email(con: &mut Connection, email: &str) -> Result<bool, rusqlite::Error> {
+pub fn exists_by_email(con: &Connection, email: &str) -> Result<bool, rusqlite::Error> {
   let sql = "SELECT count(*) FROM user WHERE email=?";
   let count: i64 = con.query_row(sql, params![email], |row| row.get(0))?;
   Ok(count != 0)
 }
 
-pub fn exists_by_user_id(con: &mut Connection, user_id: i64) -> Result<bool, rusqlite::Error> {
+pub fn exists_by_user_id(con: &Connection, user_id: i64) -> Result<bool, rusqlite::Error> {
   let sql = "SELECT count(*) FROM user WHERE user_id=?";
   let count: i64 = con.query_row(sql, params![user_id], |row| row.get(0))?;
   Ok(count != 0)
 }
 
 pub fn exists_by_verification_challenge_key_hash(
-  con: &mut Connection,
+  con: &Connection,
   verification_challenge_key_hash: &str,
 ) -> Result<bool, rusqlite::Error> {
   let sql = "SELECT count(*) FROM user WHERE verification_challenge_key_hash=?";
@@ -94,8 +94,8 @@ pub fn exists_by_verification_challenge_key_hash(
 }
 
 pub fn query(
-  con: &mut Connection,
-  props: auth_service_api::UserViewProps
+  con: &Connection,
+  props: auth_service_api::request::UserViewProps
 ) -> Result<Vec<User>, rusqlite::Error> {
   let sql = [
     "SELECT u.* FROM user u WHERE 1 = 1",
