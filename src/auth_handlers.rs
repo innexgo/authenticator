@@ -315,24 +315,62 @@ pub async fn password_new_cancel(
   db: Db,
   ls: &LogService,
   props: request::PasswordNewCancelProps,
-) -> Result<impl warp::Reply, response::AuthError> {
+) -> Result<Password, response::AuthError> {
+  let con = &mut *db.lock().await;
+
+  // api key verification required
+  let creator_key = get_api_key_if_valid(con, ls, &props.api_key)?;
+
+  // create password
+  let password = password_service::add(
+    con,
+    creator_key.creator_user_id,
+    creator_key.creator_user_id,
+    request::PasswordKind::CANCEL,
+    String::new(),
+    String::new(),
+  )
+  .map_err(|e| report_unk_err(ls, e))?;
+
+  Ok(password)
 }
 
 pub async fn user_view(
   db: Db,
   ls: &LogService,
-  props: request::PasswordNewCancelProps,
-) -> Result<impl warp::Reply, response::AuthError> {
+  props: request::UserViewProps,
+) -> Result<Vec<User>, response::AuthError> {
+  let con = &mut *db.lock().await;
+  // api key verification required
+  let creator_key = get_api_key_if_valid(con, ls, &props.api_key)?;
+  // get users
+  let users = user_service::query(con, props).map_err(|e| report_unk_err(ls, e))?;
+  // return users
+  Ok(users)
 }
 pub async fn password_view(
   db: Db,
   ls: &LogService,
-  props: request::PasswordNewCancelProps,
-) -> Result<impl warp::Reply, response::AuthError> {
+  props: request::PasswordViewProps,
+) -> Result<Vec<Password>, response::AuthError> {
+  let con = &mut *db.lock().await;
+  // api key verification required
+  let creator_key = get_api_key_if_valid(con, ls, &props.api_key)?;
+  // get users
+  let users = password_service::query(con, props).map_err(|e| report_unk_err(ls, e))?;
+  // return users
+  Ok(users)
 }
 pub async fn api_key_view(
   db: Db,
   ls: &LogService,
-  props: request::PasswordNewCancelProps,
-) -> Result<impl warp::Reply, response::AuthError> {
+  props: request::ApiKeyViewProps,
+) -> Result<Vec<ApiKey>, response::AuthError> {
+  let con = &mut *db.lock().await;
+  // api key verification required
+  let creator_key = get_api_key_if_valid(con, ls, &props.api_key)?;
+  // get users
+  let api_keys = api_key_service::query(con, props).map_err(|e| report_unk_err(ls, e))?;
+  // return
+  Ok(api_keys)
 }

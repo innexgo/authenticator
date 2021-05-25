@@ -1,5 +1,5 @@
-use auth_service_api::ApiKeyKind;
-use auth_service_api::PasswordKind;
+use auth_service_api::request::ApiKeyKind;
+use auth_service_api::request::PasswordKind;
 
 #[derive(Clone, Debug)]
 pub struct VerificationChallenge {
