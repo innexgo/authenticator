@@ -1,9 +1,9 @@
 use super::auth_db_types::PasswordReset;
 use super::utils::current_time_millis;
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Savepoint, Connection, OptionalExtension};
 
 pub fn add(
-  con: &Connection,
+  con: &mut Savepoint,
   password_reset_key_hash: String,
   creator_user_id: i64,
 ) -> Result<PasswordReset, rusqlite::Error> {

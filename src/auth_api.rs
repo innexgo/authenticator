@@ -14,15 +14,17 @@ pub fn api(
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = Infallible> + Clone {
   api_info()
-    .or(verification_challenge_new(db.clone(), &ls))
-    .or(user_new(db.clone(), &ls))
-    .or(password_reset_new(db.clone(), &ls))
-    .or(password_new_reset(db.clone(), &ls))
-    .or(password_new_change(db.clone(), &ls))
-    .or(password_new_cancel(db.clone(), &ls))
-    .or(user_view(db.clone(), &ls))
-    .or(password_view(db.clone(), &ls))
-    .or(api_key_view(db.clone(), &ls))
+    .or(verification_challenge_new(db.clone(), ls.clone()))
+    .or(api_key_new_valid(db.clone(), ls.clone()))
+    .or(api_key_new_cancel(db.clone(), ls.clone()))
+    .or(user_new(db.clone(), ls.clone()))
+    .or(password_reset_new(db.clone(), ls.clone()))
+    .or(password_new_reset(db.clone(), ls.clone()))
+    .or(password_new_change(db.clone(), ls.clone()))
+    .or(password_new_cancel(db.clone(), ls.clone()))
+    .or(user_view(db.clone(), ls.clone()))
+    .or(password_view(db.clone(), ls.clone()))
+    .or(api_key_view(db.clone(), ls.clone()))
     .recover(handle_rejection)
 }
 
@@ -34,20 +36,20 @@ fn api_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection
 }
 
 // lets you pass in an arbitrary parameter
-fn with_T<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
+fn with<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
   warp::any().map(move || t.clone())
 }
 
 fn api_key_new_valid(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("api_key/new_valid")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::api_key_new_valid(db, ls, props)
+      auth_handlers::api_key_new_valid(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -56,14 +58,14 @@ fn api_key_new_valid(
 
 fn api_key_new_cancel(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("api_key/new_cancel")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::api_key_new_cancel(db, ls, props)
+      auth_handlers::api_key_new_cancel(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -72,14 +74,14 @@ fn api_key_new_cancel(
 
 fn verification_challenge_new(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("verification_challenge/new")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::verification_challenge_new(db, ls, props)
+      auth_handlers::verification_challenge_new(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -88,14 +90,14 @@ fn verification_challenge_new(
 
 fn user_new(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("user/new")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::user_new(db, ls, props)
+      auth_handlers::user_new(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -104,14 +106,14 @@ fn user_new(
 
 fn password_reset_new(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("password_reset/new")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::password_reset_new(db, ls, props)
+      auth_handlers::password_reset_new(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -120,14 +122,14 @@ fn password_reset_new(
 
 fn password_new_reset(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("password/new_reset")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::password_new_reset(db, ls, props)
+      auth_handlers::password_new_reset(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -136,14 +138,14 @@ fn password_new_reset(
 
 fn password_new_change(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("password/new_change")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::password_new_change(db, ls, props)
+      auth_handlers::password_new_change(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -152,14 +154,14 @@ fn password_new_change(
 
 fn password_new_cancel(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("password/new_cancel")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::password_new_cancel(db, ls, props)
+      auth_handlers::password_new_cancel(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -168,14 +170,14 @@ fn password_new_cancel(
 
 fn user_view(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("user/view")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::user_view(db, ls, props)
+      auth_handlers::user_view(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -184,14 +186,14 @@ fn user_view(
 
 fn password_view(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("password/view")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::password_view(db, ls, props)
+      auth_handlers::password_view(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -200,14 +202,14 @@ fn password_view(
 
 fn api_key_view(
   db: Db,
-  ls: &LogService,
+  ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("api_key/view")
-    .and(with_T(db))
-    .and(with_T(ls))
+    .and(with(db))
+    .and(with(ls))
     .and(warp::body::json())
     .and_then(async move |db, ls, props| {
-      auth_handlers::api_key_view(db, ls, props)
+      auth_handlers::api_key_view(db, &ls, props)
         .await
         .map_err(auth_error)
     })
@@ -223,10 +225,10 @@ async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, Infa
   if err.is_not_found() {
     code = StatusCode::NOT_FOUND;
     message = "NOT_FOUND";
-  } else if let Some(e) = err.find::<warp::filters::body::BodyDeserializeError>() {
+  } else if err.find::<warp::filters::body::BodyDeserializeError>().is_some() {
     message = "BAD_REQUEST";
     code = StatusCode::BAD_REQUEST;
-  } else if let Some(_) = err.find::<warp::reject::MethodNotAllowed>() {
+  } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
     code = StatusCode::METHOD_NOT_ALLOWED;
     message = "METHOD_NOT_ALLOWED";
   } else if let Some(AuthErrorRejection(auth_error)) = err.find() {

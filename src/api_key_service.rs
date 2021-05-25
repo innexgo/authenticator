@@ -1,6 +1,6 @@
 use super::auth_db_types::*;
 use super::utils::current_time_millis;
-use rusqlite::{named_params, params, Connection, OptionalExtension};
+use rusqlite::{named_params, params, Savepoint, Connection, OptionalExtension};
 use std::convert::{TryFrom, TryInto};
 
 // returns the max api_key id and adds 1 to it
@@ -30,14 +30,14 @@ impl TryFrom<&rusqlite::Row<'_>> for ApiKey {
 }
 
 pub fn add(
-  con: &Connection,
+  con: &mut Savepoint,
   creator_user_id: i64,
   api_key_hash: String,
   api_key_kind: auth_service_api::request::ApiKeyKind,
   duration: i64,
 ) -> Result<ApiKey, rusqlite::Error> {
   let sp = con.savepoint()?;
-  let api_key_id = next_id(&mut sp)?;
+  let api_key_id = next_id(&sp)?;
   let creation_time = current_time_millis();
 
   let sql = "INSERT INTO api_key values (?, ?, ?, ?, ?, ?)";
@@ -48,13 +48,13 @@ pub fn add(
       creation_time,
       creator_user_id,
       api_key_hash,
-      api_key_kind as u8,
+      api_key_kind.clone() as u8,
       duration,
     ],
   )?;
 
   // commit savepoint
-  sp.commit();
+  sp.commit()?;
 
   // return api_key
   Ok(ApiKey {
@@ -115,7 +115,7 @@ pub fn query(
   ]
   .join("");
 
-  let stmnt = con.prepare(&sql)?;
+  let mut stmnt = con.prepare(&sql)?;
 
   let results = stmnt
     .query(named_params! {

@@ -1,6 +1,6 @@
 use super::auth_db_types::*;
 use super::utils::current_time_millis;
-use rusqlite::{named_params, params, Connection, OptionalExtension};
+use rusqlite::{named_params, params, Connection, Savepoint, OptionalExtension};
 use std::convert::{TryFrom, TryInto};
 
 // returns the max user id and adds 1 to it
@@ -25,9 +25,9 @@ impl TryFrom<&rusqlite::Row<'_>> for User {
     }
 }
 
-pub fn add(con: &Connection, v: VerificationChallenge) -> Result<User, rusqlite::Error> {
+pub fn add(con: &mut Savepoint, v: VerificationChallenge) -> Result<User, rusqlite::Error> {
   let sp = con.savepoint()?;
-  let user_id = next_id(&mut sp)?;
+  let user_id = next_id(&sp)?;
   let creation_time = current_time_millis();
 
   let sql = "INSERT INTO user values (?, ?, ?, ?, ?)";
@@ -43,7 +43,7 @@ pub fn add(con: &Connection, v: VerificationChallenge) -> Result<User, rusqlite:
   )?;
 
   // commit savepoint
-  sp.commit();
+  sp.commit()?;
 
   // return user
   Ok(User {
@@ -110,7 +110,7 @@ pub fn query(
   ]
   .join("");
 
-  let stmnt = con.prepare(&sql)?;
+  let mut stmnt = con.prepare(&sql)?;
 
   let results = stmnt
     .query(named_params! {

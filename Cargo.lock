@@ -4,9 +4,9 @@ version = 3
 
 [[package]]
 name = "ahash"
-version = "0.7.3"
+version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11149c3eb723d15cb065a9ea5cc74ab57250f098ef33c9f6f7f39b48bd207750"
+checksum = "43bb833f0bf979d8475d38fbf09ed3b8a55e1885fe93ad3f93239fc6a4f17b98"
 dependencies = [
  "getrandom 0.2.3",
  "once_cell",
@@ -44,8 +44,8 @@ dependencies = [
 
 [[package]]
 name = "auth-service-api"
-version = "0.7.4"
-source = "git+https://github.com/innexgo/auth-service-api#e195b3c12bd2b3402431c83334302dd418739c28"
+version = "0.7.7"
+source = "git+https://github.com/innexgo/auth-service-api#40ffadeb5616eb475e542478ef31a40f5a57fdbc"
 dependencies = [
  "serde",
  "strum",

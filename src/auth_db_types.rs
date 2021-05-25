@@ -31,7 +31,6 @@ pub struct Password {
   pub password_id: i64,
   pub creation_time: i64,
   pub creator_user_id: i64,
-  pub user_id: i64,
   pub password_kind: PasswordKind,
   pub password_hash: String,
   pub password_reset_key_hash: String,
