@@ -36,7 +36,6 @@ create table password(
   password_id integer not null primary key,
   creation_time integer not null,
   creator_user_id integer not null,
-  user_id integer not null,
   password_kind integer not null, -- CHANGE | RESET | CANCEL
   password_hash char(64) not null, -- only valid if RESET | CANCEL
   password_reset_key_hash char(64) not null -- only valid if RESET

@@ -1,8 +1,7 @@
+use rand::{thread_rng, Rng};
 use sha2::{Digest, Sha256};
 use std::convert::TryInto;
 use std::time::{SystemTime, UNIX_EPOCH};
-use rand::{Rng, thread_rng};
-use bcrypt::BcryptError;
 
 pub fn current_time_millis() -> i64 {
   let since_the_epoch = SystemTime::now()
@@ -35,10 +34,17 @@ pub fn is_secure_password(password: &str) -> bool {
   len >= 8 && numdigits > 0
 }
 
-pub fn verify_password(password:&str, password_hash:&str) -> Result<bool, BcryptError> {
-  bcrypt::verify(password, password_hash)
+pub fn verify_password(password: &str, password_hash: &str) -> Result<bool, argon2::Error> {
+  argon2::verify_encoded(password_hash, password.as_bytes())
 }
 
-pub fn hash_password(password:&str) -> Result<String, BcryptError> {
-  bcrypt::hash(password, 5)
+pub fn hash_password(password: &str) -> Result<String, argon2::Error> {
+  argon2::hash_encoded(
+    // password
+    password.as_bytes(),
+    // salt
+    &thread_rng().gen::<[u8; 32]>(),
+    //config
+    &argon2::Config::default(),
+  )
 }

@@ -32,7 +32,7 @@ fn api_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection
   let mut info = HashMap::new();
   info.insert("version", "0.1");
   info.insert("name", SERVICE_NAME);
-  warp::path!("").map(move || warp::reply::json(&info))
+  warp::path!("info").map(move || warp::reply::json(&info))
 }
 
 // lets you pass in an arbitrary parameter
@@ -44,7 +44,7 @@ fn api_key_new_valid(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("api_key/new_valid")
+  warp::path!("api_key" / "new_valid")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -60,7 +60,7 @@ fn api_key_new_cancel(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("api_key/new_cancel")
+  warp::path!("api_key" / "new_cancel")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -76,7 +76,7 @@ fn verification_challenge_new(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("verification_challenge/new")
+  warp::path!("verification_challenge" / "new")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -92,7 +92,7 @@ fn user_new(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("user/new")
+  warp::path!("user" / "new")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -108,7 +108,7 @@ fn password_reset_new(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("password_reset/new")
+  warp::path!("password_reset" / "new")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -124,7 +124,7 @@ fn password_new_reset(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("password/new_reset")
+  warp::path!("password" / "new_reset")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -140,7 +140,7 @@ fn password_new_change(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("password/new_change")
+  warp::path!("password" / "new_change")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -156,7 +156,7 @@ fn password_new_cancel(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("password/new_cancel")
+  warp::path!("password" / "new_cancel")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -172,7 +172,7 @@ fn user_view(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("user/view")
+  warp::path!("user" / "view")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -188,7 +188,7 @@ fn password_view(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("password/view")
+  warp::path!("password" / "view")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -204,7 +204,7 @@ fn api_key_view(
   db: Db,
   ls: LogService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("api_key/view")
+  warp::path!("api_key" / "view")
     .and(with(db))
     .and(with(ls))
     .and(warp::body::json())
@@ -225,7 +225,10 @@ async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, Infa
   if err.is_not_found() {
     code = StatusCode::NOT_FOUND;
     message = "NOT_FOUND";
-  } else if err.find::<warp::filters::body::BodyDeserializeError>().is_some() {
+  } else if err
+    .find::<warp::filters::body::BodyDeserializeError>()
+    .is_some()
+  {
     message = "BAD_REQUEST";
     code = StatusCode::BAD_REQUEST;
   } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
