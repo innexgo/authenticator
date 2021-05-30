@@ -8,10 +8,7 @@ pub fn current_time_millis() -> i64 {
     .duration_since(UNIX_EPOCH)
     .expect("time went backwards");
 
-  since_the_epoch
-    .as_millis()
-    .try_into()
-    .expect("time overflow")
+  since_the_epoch.as_millis() as i64
 }
 
 pub fn gen_random_string() -> String {

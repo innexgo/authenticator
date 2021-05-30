@@ -21,7 +21,7 @@ mod verification_challenge_service;
 mod password_reset_service;
 mod password_service;
 
-static SERVICE_NAME: &str = "auth-api";
+static SERVICE_NAME: &str = "auth-service";
 
 #[derive(Clap, Clone)]
 struct Opts {
