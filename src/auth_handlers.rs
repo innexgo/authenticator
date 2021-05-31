@@ -12,10 +12,13 @@ use super::verification_challenge_service;
 
 static FIFTEEN_MINUTES: u64 = 15 * 60 * 1000;
 
-#[tokio::main]
-async fn report_unk_err<E: std::error::Error>(e: E) -> response::AuthError {
+fn report_unk_err<E: std::error::Error>(e: E) -> response::AuthError {
   // TODO
-  println!("unknown error: {}", &e.to_string());
+  utils::log(utils::Event {
+    msg: e.to_string(),
+    source: e.source().map(|e| e.to_string()),
+    severity: utils::SeverityKind::Error,
+  });
   response::AuthError::Unknown
 }
 

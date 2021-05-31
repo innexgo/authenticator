@@ -1,4 +1,5 @@
 use super::auth_handlers;
+use super::utils;
 use super::Db;
 use super::SERVICE_NAME;
 use auth_service_api::response::AuthError;
@@ -8,9 +9,7 @@ use warp::http::StatusCode;
 use warp::Filter;
 
 /// The function that will show all ones to call
-pub fn api(
-  db: Db,
-) -> impl Filter<Extract = impl warp::Reply, Error = Infallible> + Clone {
+pub fn api(db: Db) -> impl Filter<Extract = impl warp::Reply, Error = Infallible> + Clone {
   api_info()
     .or(verification_challenge_new(db.clone()))
     .or(api_key_new_valid(db.clone()))
@@ -80,17 +79,11 @@ fn verification_challenge_new(
     .map(|x| warp::reply::json(&x))
 }
 
-fn user_new(
-  db: Db,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn user_new(db: Db) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("user" / "new")
     .and(with(db))
     .and(warp::body::json())
-    .and_then(async move |db, props| {
-      auth_handlers::user_new(db, props)
-        .await
-        .map_err(auth_error)
-    })
+    .and_then(async move |db, props| auth_handlers::user_new(db, props).await.map_err(auth_error))
     .map(|x| warp::reply::json(&x))
 }
 
@@ -150,9 +143,7 @@ fn password_new_cancel(
     .map(|x| warp::reply::json(&x))
 }
 
-fn user_view(
-  db: Db,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn user_view(db: Db) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
   warp::path!("user" / "view")
     .and(with(db))
     .and(warp::body::json())
@@ -215,8 +206,11 @@ async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, Infa
     message = auth_error.as_ref();
   } else {
     // We should have expected this... Just log and say its a 500
-    // TODO
-    println!("unhandled rejection: {:?}", err);
+    utils::log(utils::Event {
+      msg: "unknown error kind".to_owned(),
+      source: None,
+      severity: utils::SeverityKind::Error,
+    });
     code = StatusCode::INTERNAL_SERVER_ERROR;
     message = "UNKNOWN";
   }
