@@ -1,7 +1,6 @@
 use super::Db;
 use auth_service_api::request;
 use auth_service_api::response;
-use log_service_api::client::LogService;
 
 use super::api_key_service;
 use super::auth_db_types::*;
@@ -14,14 +13,14 @@ use super::verification_challenge_service;
 static FIFTEEN_MINUTES: u64 = 15 * 60 * 1000;
 
 #[tokio::main]
-async fn report_unk_err<E: std::error::Error>(ls: &LogService, e: E) -> response::AuthError {
-  ls.error(&e.to_string()).await;
+async fn report_unk_err<E: std::error::Error>(e: E) -> response::AuthError {
+  // TODO
+  println!("unknown error: {}", &e.to_string());
   response::AuthError::Unknown
 }
 
 fn fill_user(
   _con: &rusqlite::Connection,
-  _ls: &LogService,
   user: User,
 ) -> Result<response::User, response::AuthError> {
   Ok(response::User {
@@ -34,7 +33,6 @@ fn fill_user(
 
 fn fill_api_key(
   con: &rusqlite::Connection,
-  ls: &LogService,
   api_key: ApiKey,
   key: Option<String>,
 ) -> Result<response::ApiKey, response::AuthError> {
@@ -43,9 +41,8 @@ fn fill_api_key(
     creation_time: api_key.creation_time,
     creator: fill_user(
       con,
-      ls,
       user_service::get_by_user_id(con, api_key.creator_user_id)
-        .map_err(|e| report_unk_err(ls, e))?
+        .map_err(report_unk_err)?
         .ok_or(response::AuthError::UserNonexistent)?,
     )?,
     api_key_data: match api_key.api_key_kind {
@@ -60,7 +57,6 @@ fn fill_api_key(
 
 fn fill_password(
   con: &rusqlite::Connection,
-  ls: &LogService,
   password: Password,
 ) -> Result<response::Password, response::AuthError> {
   Ok(response::Password {
@@ -68,9 +64,8 @@ fn fill_password(
     creation_time: password.creation_time,
     creator: fill_user(
       con,
-      ls,
       user_service::get_by_user_id(con, password.creator_user_id)
-        .map_err(|e| report_unk_err(ls, e))?
+        .map_err(report_unk_err)?
         .ok_or(response::AuthError::UserNonexistent)?,
     )?,
     password_kind: password.password_kind,
@@ -79,7 +74,6 @@ fn fill_password(
 
 fn fill_password_reset(
   _con: &rusqlite::Connection,
-  _ls: &LogService,
   password_reset: PasswordReset,
 ) -> Result<response::PasswordReset, response::AuthError> {
   Ok(response::PasswordReset {
@@ -89,7 +83,6 @@ fn fill_password_reset(
 
 fn fill_verification_challenge(
   _con: &rusqlite::Connection,
-  _ls: &LogService,
   verification_challenge: VerificationChallenge,
 ) -> Result<response::VerificationChallenge, response::AuthError> {
   Ok(response::VerificationChallenge {
@@ -101,11 +94,10 @@ fn fill_verification_challenge(
 
 pub fn get_api_key_if_valid(
   con: &mut rusqlite::Connection,
-  ls: &LogService,
   api_key: &str,
 ) -> Result<ApiKey, response::AuthError> {
   let creator_api_key = api_key_service::get_by_api_key_hash(con, &utils::hash_str(api_key))
-    .map_err(|e| report_unk_err(ls, e))?
+    .map_err(report_unk_err)?
     .ok_or(response::AuthError::ApiKeyNonexistent)?;
 
   if utils::current_time_millis() > creator_api_key.creation_time + creator_api_key.duration {
@@ -117,29 +109,28 @@ pub fn get_api_key_if_valid(
 
 pub async fn api_key_new_valid(
   db: Db,
-  ls: &LogService,
   props: request::ApiKeyNewValidProps,
 ) -> Result<response::ApiKey, response::AuthError> {
   let con = &mut *db.lock().await;
 
   let user = user_service::get_by_user_email(con, &props.user_email)
-    .map_err(|e| report_unk_err(ls, e))?
+    .map_err(report_unk_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
   let password = password_service::get_by_password_id(con, user.user_id)
-    .map_err(|e| report_unk_err(ls, e))?
+    .map_err(report_unk_err)?
     .ok_or(response::AuthError::PasswordNonexistent)?;
 
   // validate password with bcrypt
   if !utils::verify_password(&props.user_password, &password.password_hash)
-    .map_err(|e| report_unk_err(ls, e))?
+    .map_err(report_unk_err)?
   {
     return Err(response::AuthError::PasswordIncorrect);
   }
 
   let raw_api_key = utils::gen_random_string();
 
-  let mut sp = con.savepoint().map_err(|e| report_unk_err(ls, e))?;
+  let mut sp = con.savepoint().map_err(report_unk_err)?;
 
   // add new api key
   let api_key = api_key_service::add(
@@ -149,30 +140,29 @@ pub async fn api_key_new_valid(
     request::ApiKeyKind::Valid,
     props.duration,
   )
-  .map_err(|e| report_unk_err(ls, e))?;
+  .map_err(report_unk_err)?;
 
-  sp.commit().map_err(|e| report_unk_err(ls, e))?;
+  sp.commit().map_err(report_unk_err)?;
 
-  fill_api_key(con, ls, api_key, Some(raw_api_key))
+  fill_api_key(con, api_key, Some(raw_api_key))
 }
 
 pub async fn api_key_new_cancel(
   db: Db,
-  ls: &LogService,
   props: request::ApiKeyNewCancelProps,
 ) -> Result<response::ApiKey, response::AuthError> {
   let con = &mut *db.lock().await;
 
   // validate api key
-  let creator_key = get_api_key_if_valid(con, ls, &props.api_key)?;
+  let creator_key = get_api_key_if_valid(con, &props.api_key)?;
 
-  let to_cancel_key = get_api_key_if_valid(con, ls, &props.api_key_to_cancel)?;
+  let to_cancel_key = get_api_key_if_valid(con, &props.api_key_to_cancel)?;
 
   if creator_key.creator_user_id != to_cancel_key.creator_user_id {
     return Err(response::AuthError::ApiKeyUnauthorized);
   }
 
-  let mut sp = con.savepoint().map_err(|e| report_unk_err(ls, e))?;
+  let mut sp = con.savepoint().map_err(report_unk_err)?;
 
   // cancel keys
   let key_cancel = api_key_service::add(
@@ -182,17 +172,16 @@ pub async fn api_key_new_cancel(
     request::ApiKeyKind::Cancel,
     0,
   )
-  .map_err(|e| report_unk_err(ls, e))?;
+  .map_err(report_unk_err)?;
 
-  sp.commit().map_err(|e| report_unk_err(ls, e))?;
+  sp.commit().map_err(report_unk_err)?;
 
   // return json
-  fill_api_key(con, ls, key_cancel, None)
+  fill_api_key(con, key_cancel, None)
 }
 
 pub async fn verification_challenge_new(
   db: Db,
-  ls: &LogService,
   props: request::VerificationChallengeNewProps,
 ) -> Result<response::VerificationChallenge, response::AuthError> {
   // perform basic validation
@@ -213,13 +202,13 @@ pub async fn verification_challenge_new(
   let con = &mut *db.lock().await;
 
   // if user name is taken
-  if user_service::exists_by_email(con, &props.user_email).map_err(|e| report_unk_err(ls, e))? {
+  if user_service::exists_by_email(con, &props.user_email).map_err(report_unk_err)? {
     return Err(response::AuthError::UserExistent);
   }
 
   let last_email_sent_time =
     verification_challenge_service::get_last_email_sent_time(con, &props.user_email)
-      .map_err(|e| report_unk_err(ls, e))?;
+      .map_err(report_unk_err)?;
 
   if let Some(time) = last_email_sent_time {
     if time + FIFTEEN_MINUTES as i64 > utils::current_time_millis() {
@@ -235,18 +224,17 @@ pub async fn verification_challenge_new(
     utils::hash_str(&verification_challenge_key),
     props.user_name,
     props.user_email,
-    utils::hash_password(&props.user_password).map_err(|e| report_unk_err(ls, e))?,
+    utils::hash_password(&props.user_password).map_err(report_unk_err)?,
   )
-  .map_err(|e| report_unk_err(ls, e))?;
+  .map_err(report_unk_err)?;
 
   // TODO sent email
 
   // return json
-  fill_verification_challenge(con, ls, verification_challenge)
+  fill_verification_challenge(con, verification_challenge)
 }
 pub async fn user_new(
   db: Db,
-  ls: &LogService,
   props: request::UserNewProps,
 ) -> Result<response::User, response::AuthError> {
   let con = &mut *db.lock().await;
@@ -255,14 +243,13 @@ pub async fn user_new(
 
   // check that the verification challenge exists
   let vc = verification_challenge_service::get_by_verification_challenge_key_hash(con, vckh)
-    .map_err(|e| report_unk_err(ls, e))?
+    .map_err(report_unk_err)?
     .ok_or(response::AuthError::VerificationChallengeNonexistent)?;
 
   // check if the verification challenge was not already used
   // and that the email isn't already in use by another user
-  if user_service::exists_by_verification_challenge_key_hash(con, vckh)
-    .map_err(|e| report_unk_err(ls, e))?
-    || user_service::exists_by_email(con, &vc.email).map_err(|e| report_unk_err(ls, e))?
+  if user_service::exists_by_verification_challenge_key_hash(con, vckh).map_err(report_unk_err)?
+    || user_service::exists_by_email(con, &vc.email).map_err(report_unk_err)?
   {
     return Err(response::AuthError::UserExistent);
   }
@@ -275,10 +262,10 @@ pub async fn user_new(
 
   let vc_password_hash = vc.password_hash.clone();
 
-  let mut sp = con.savepoint().map_err(|e| report_unk_err(ls, e))?;
+  let mut sp = con.savepoint().map_err(report_unk_err)?;
 
   // create user
-  let user = user_service::add(&mut sp, vc).map_err(|e| report_unk_err(ls, e))?;
+  let user = user_service::add(&mut sp, vc).map_err(report_unk_err)?;
 
   // create password
   password_service::add(
@@ -288,43 +275,41 @@ pub async fn user_new(
     vc_password_hash,
     String::new(),
   )
-  .map_err(|e| report_unk_err(ls, e))?;
+  .map_err(report_unk_err)?;
 
-  sp.commit().map_err(|e| report_unk_err(ls, e))?;
+  sp.commit().map_err(report_unk_err)?;
 
   // return filled struct
-  fill_user(con, ls, user)
+  fill_user(con, user)
 }
 pub async fn password_reset_new(
   db: Db,
-  ls: &LogService,
   props: request::PasswordResetNewProps,
 ) -> Result<response::PasswordReset, response::AuthError> {
   let con = &mut *db.lock().await;
 
   let user = user_service::get_by_user_email(con, &props.user_email)
-    .map_err(|e| report_unk_err(ls, e))?
+    .map_err(report_unk_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
   let raw_key = utils::gen_random_string();
 
-  let mut sp = con.savepoint().map_err(|e| report_unk_err(ls, e))?;
+  let mut sp = con.savepoint().map_err(report_unk_err)?;
 
   let password_reset =
     password_reset_service::add(&mut sp, utils::hash_str(&raw_key), user.user_id)
-      .map_err(|e| report_unk_err(ls, e))?;
+      .map_err(report_unk_err)?;
 
-  sp.commit().map_err(|e| report_unk_err(ls, e))?;
+  sp.commit().map_err(report_unk_err)?;
 
   // TODO send email
 
   // fill struct
-  fill_password_reset(con, ls, password_reset)
+  fill_password_reset(con, password_reset)
 }
 
 pub async fn password_new_reset(
   db: Db,
-  ls: &LogService,
   props: request::PasswordNewResetProps,
 ) -> Result<response::Password, response::AuthError> {
   // no api key verification needed
@@ -336,12 +321,12 @@ pub async fn password_new_reset(
     con,
     &utils::hash_str(&props.password_reset_key),
   )
-  .map_err(|e| report_unk_err(ls, e))?
+  .map_err(report_unk_err)?
   .ok_or(response::AuthError::PasswordResetNonexistent)?;
 
   // deny if we alread created a password from this reset
   if password_service::exists_by_password_reset_key_hash(con, &psr.password_reset_key_hash)
-    .map_err(|e| report_unk_err(ls, e))?
+    .map_err(report_unk_err)?
   {
     return Err(response::AuthError::PasswordExistent);
   }
@@ -357,10 +342,9 @@ pub async fn password_new_reset(
   }
 
   // attempt to hash password
-  let new_password_hash =
-    utils::hash_password(&props.new_password).map_err(|e| report_unk_err(ls, e))?;
+  let new_password_hash = utils::hash_password(&props.new_password).map_err(report_unk_err)?;
 
-  let mut sp = con.savepoint().map_err(|e| report_unk_err(ls, e))?;
+  let mut sp = con.savepoint().map_err(report_unk_err)?;
 
   // create password
   let password = password_service::add(
@@ -370,22 +354,21 @@ pub async fn password_new_reset(
     new_password_hash,
     psr.password_reset_key_hash,
   )
-  .map_err(|e| report_unk_err(ls, e))?;
+  .map_err(report_unk_err)?;
 
-  sp.commit().map_err(|e| report_unk_err(ls, e))?;
+  sp.commit().map_err(report_unk_err)?;
 
-  fill_password(con, ls, password)
+  fill_password(con, password)
 }
 
 pub async fn password_new_change(
   db: Db,
-  ls: &LogService,
   props: request::PasswordNewChangeProps,
 ) -> Result<response::Password, response::AuthError> {
   let con = &mut *db.lock().await;
 
   // api key verification required
-  let creator_key = get_api_key_if_valid(con, ls, &props.api_key)?;
+  let creator_key = get_api_key_if_valid(con, &props.api_key)?;
 
   // reject insecure passwords
   if !utils::is_secure_password(&props.new_password) {
@@ -393,10 +376,9 @@ pub async fn password_new_change(
   }
 
   // attempt to hash password
-  let new_password_hash =
-    utils::hash_password(&props.new_password).map_err(|e| report_unk_err(ls, e))?;
+  let new_password_hash = utils::hash_password(&props.new_password).map_err(report_unk_err)?;
 
-  let mut sp = con.savepoint().map_err(|e| report_unk_err(ls, e))?;
+  let mut sp = con.savepoint().map_err(report_unk_err)?;
 
   // create password
   let password = password_service::add(
@@ -406,24 +388,23 @@ pub async fn password_new_change(
     new_password_hash,
     String::new(),
   )
-  .map_err(|e| report_unk_err(ls, e))?;
+  .map_err(report_unk_err)?;
 
-  sp.commit().map_err(|e| report_unk_err(ls, e))?;
+  sp.commit().map_err(report_unk_err)?;
 
   // return filled struct
-  fill_password(con, ls, password)
+  fill_password(con, password)
 }
 pub async fn password_new_cancel(
   db: Db,
-  ls: &LogService,
   props: request::PasswordNewCancelProps,
 ) -> Result<response::Password, response::AuthError> {
   let con = &mut *db.lock().await;
 
   // api key verification required
-  let creator_key = get_api_key_if_valid(con, ls, &props.api_key)?;
+  let creator_key = get_api_key_if_valid(con, &props.api_key)?;
 
-  let mut sp = con.savepoint().map_err(|e| report_unk_err(ls, e))?;
+  let mut sp = con.savepoint().map_err(report_unk_err)?;
 
   // create password
   let password = password_service::add(
@@ -433,56 +414,53 @@ pub async fn password_new_cancel(
     String::new(),
     String::new(),
   )
-  .map_err(|e| report_unk_err(ls, e))?;
+  .map_err(report_unk_err)?;
 
-  sp.commit().map_err(|e| report_unk_err(ls, e))?;
+  sp.commit().map_err(report_unk_err)?;
 
-  fill_password(con, ls, password)
+  fill_password(con, password)
 }
 
 pub async fn user_view(
   db: Db,
-  ls: &LogService,
   props: request::UserViewProps,
 ) -> Result<Vec<response::User>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, ls, &props.api_key)?;
+  let _ = get_api_key_if_valid(con, &props.api_key)?;
   // get users
-  let users = user_service::query(con, props).map_err(|e| report_unk_err(ls, e))?;
+  let users = user_service::query(con, props).map_err(report_unk_err)?;
   // return users
-  users.into_iter().map(|u| fill_user(con, ls, u)).collect()
+  users.into_iter().map(|u| fill_user(con, u)).collect()
 }
 
 pub async fn password_view(
   db: Db,
-  ls: &LogService,
   props: request::PasswordViewProps,
 ) -> Result<Vec<response::Password>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, ls, &props.api_key)?;
+  let _ = get_api_key_if_valid(con, &props.api_key)?;
   // get passwords
-  let passwords = password_service::query(con, props).map_err(|e| report_unk_err(ls, e))?;
+  let passwords = password_service::query(con, props).map_err(report_unk_err)?;
   // return passwords
   passwords
     .into_iter()
-    .map(|p| fill_password(con, ls, p))
+    .map(|p| fill_password(con, p))
     .collect()
 }
 pub async fn api_key_view(
   db: Db,
-  ls: &LogService,
   props: request::ApiKeyViewProps,
 ) -> Result<Vec<response::ApiKey>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, ls, &props.api_key)?;
+  let _ = get_api_key_if_valid(con, &props.api_key)?;
   // get users
-  let api_keys = api_key_service::query(con, props).map_err(|e| report_unk_err(ls, e))?;
+  let api_keys = api_key_service::query(con, props).map_err(report_unk_err)?;
   // return
   api_keys
     .into_iter()
-    .map(|a| fill_api_key(con, ls, a, None))
+    .map(|a| fill_api_key(con, a, None))
     .collect()
 }

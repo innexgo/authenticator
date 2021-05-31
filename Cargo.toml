@@ -17,4 +17,3 @@ clap = "3.0.0-beta.2"
 tokio = { version = "1", features=["full"] }
 serde = { version = "1", features = ["derive"] }
 auth-service-api = {version = "^0.7", git = "https://github.com/innexgo/auth-service-api" }
-log-service-api = {version = "^0.2", features = ["client"], git = "https://github.com/innexgo/log-service-api" }

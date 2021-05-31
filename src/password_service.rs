@@ -76,22 +76,6 @@ pub fn get_by_password_id(
     .optional()
 }
 
-pub fn get_by_creator_user_id(
-  con: &Connection,
-  creator_user_id: i64,
-) -> Result<Option<Password>, rusqlite::Error> {
-  let sql = "SELECT * FROM password WHERE creator_user_id=?";
-  con
-    .query_row(sql, params![creator_user_id], |row| row.try_into())
-    .optional()
-}
-
-pub fn exists_by_password_id(con: &Connection, password_id: i64) -> Result<bool, rusqlite::Error> {
-  let sql = "SELECT count(*) FROM password WHERE password_id=?";
-  let count: i64 = con.query_row(sql, params![password_id], |row| row.get(0))?;
-  Ok(count != 0)
-}
-
 pub fn exists_by_password_reset_key_hash(
   con: &Connection,
   password_reset_key_hash: &str,
@@ -107,9 +91,9 @@ pub fn query(
 ) -> Result<Vec<Password>, rusqlite::Error> {
   let sql = [
 
-    "SELECT a.* FROM api_key a",
+    "SELECT p.* FROM password p",
     if props.only_recent {
-        " INNER JOIN (SELECT max(api_key_id) id FROM api_key GROUP BY api_key_hash) maxids ON maxids.id = a.api_key_id"
+        " INNER JOIN (SELECT max(password_id) id FROM password GROUP BY creator_user_id) maxids ON maxids.id = p.password_id"
     } else {
         ""
     },
@@ -119,7 +103,7 @@ pub fn query(
     " AND (:creation_time   == NULL OR p.creation_time <= :max_creation_time)",
     " AND (:creator_user_id == NULL OR p.creator_user_id = :creator_user_id)",
     " AND (:password_kind   == NULL OR p.password_kind = :password_kind)",
-    " ORDER BY u.password_id",
+    " ORDER BY p.password_id",
     " LIMIT :offset, :count",
   ]
   .join("");

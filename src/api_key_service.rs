@@ -110,7 +110,7 @@ pub fn query(
     " AND (:duration        == NULL OR a.duration >= :min_duration)",
     " AND (:duration        == NULL OR a.duration <= :max_duration)",
     " AND (:api_key_kind    == NULL OR a.api_key_kind = :api_key_kind)",
-    " ORDER BY u.api_key_id",
+    " ORDER BY a.api_key_id",
     " LIMIT :offset, :count",
   ]
   .join("");
