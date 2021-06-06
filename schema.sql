@@ -14,6 +14,7 @@ create table verification_challenge(
   password_hash char(64) not null
 );
 
+
 drop table if exists user;
 create table user(
   user_id integer not null primary key,

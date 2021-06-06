@@ -1,3 +1,4 @@
+use super::Config;
 use super::Db;
 use auth_service_api::request;
 use auth_service_api::response;
@@ -9,6 +10,8 @@ use super::password_service;
 use super::user_service;
 use super::utils;
 use super::verification_challenge_service;
+
+use mail_service_api::client::MailService;
 
 static FIFTEEN_MINUTES: u64 = 15 * 60 * 1000;
 
@@ -111,7 +114,9 @@ pub fn get_api_key_if_valid(
 }
 
 pub async fn api_key_new_valid(
+  _config: Config,
   db: Db,
+  _mail_service: MailService,
   props: request::ApiKeyNewValidProps,
 ) -> Result<response::ApiKey, response::AuthError> {
   let con = &mut *db.lock().await;
@@ -151,7 +156,9 @@ pub async fn api_key_new_valid(
 }
 
 pub async fn api_key_new_cancel(
+  config: Config,
   db: Db,
+  _mail_service: MailService,
   props: request::ApiKeyNewCancelProps,
 ) -> Result<response::ApiKey, response::AuthError> {
   let con = &mut *db.lock().await;
@@ -184,7 +191,9 @@ pub async fn api_key_new_cancel(
 }
 
 pub async fn verification_challenge_new(
+  config: Config,
   db: Db,
+  mail_service: MailService,
   props: request::VerificationChallengeNewProps,
 ) -> Result<response::VerificationChallenge, response::AuthError> {
   // perform basic validation
@@ -222,6 +231,31 @@ pub async fn verification_challenge_new(
   // generate random string
   let verification_challenge_key = utils::gen_random_string();
 
+  // send email
+  mail_service
+    .mail_new(mail_service_api::request::MailNewProps {
+      request_id: 0,
+      destination: props.user_email.clone(),
+      topic: "verification_challenge".to_owned(),
+      title: format!("{}: Email Verification", &config.site_external_url),
+      content: [
+        &format!(
+          "<p>Required email verification for: {} </p>",
+          &props.user_name
+        ),
+        "<p>If you did not make this request, then feel free to ignore.</p>",
+        "<p>This link is valid for up to 15 minutes.</p>",
+        "<p>Do not share this link with others.</p>",
+        &format!(
+          "<p>Verification link: {}/register_confirm?verificationChallengeKey={}</p>",
+          &config.site_external_url, verification_challenge_key
+        ),
+      ]
+      .join(""),
+    })
+    .await;
+
+  // insert into database
   let verification_challenge = verification_challenge_service::add(
     con,
     utils::hash_str(&verification_challenge_key),
@@ -231,13 +265,13 @@ pub async fn verification_challenge_new(
   )
   .map_err(report_unk_err)?;
 
-  // TODO sent email
-
   // return json
   fill_verification_challenge(con, verification_challenge)
 }
 pub async fn user_new(
+  config: Config,
   db: Db,
+  _mail_service: MailService,
   props: request::UserNewProps,
 ) -> Result<response::User, response::AuthError> {
   let con = &mut *db.lock().await;
@@ -286,7 +320,9 @@ pub async fn user_new(
   fill_user(con, user)
 }
 pub async fn password_reset_new(
+  config: Config,
   db: Db,
+  mail_service: MailService,
   props: request::PasswordResetNewProps,
 ) -> Result<response::PasswordReset, response::AuthError> {
   let con = &mut *db.lock().await;
@@ -303,16 +339,36 @@ pub async fn password_reset_new(
     password_reset_service::add(&mut sp, utils::hash_str(&raw_key), user.user_id)
       .map_err(report_unk_err)?;
 
-  sp.commit().map_err(report_unk_err)?;
+  mail_service
+    .mail_new(mail_service_api::request::MailNewProps {
+      request_id: 0,
+      destination: props.user_email,
+      topic: "password_reset".to_owned(),
+      title: format!("{}: Password Reset", &config.site_external_url),
+      content: [
+        "<p>Requested password reset service: </p>",
+        "<p>If you did not make this request, then feel free to ignore.</p>",
+        "<p>This link is valid for up to 15 minutes.</p>",
+        "<p>Do not share this link with others.</p>",
+        &format!(
+          "<p>Password change link: {}/reset_password?resetKey={}</p>",
+          &config.site_external_url, raw_key
+        ),
+      ]
+      .join(""),
+    })
+    .await;
 
-  // TODO send email
+  sp.commit().map_err(report_unk_err)?;
 
   // fill struct
   fill_password_reset(con, password_reset)
 }
 
 pub async fn password_new_reset(
+  config: Config,
   db: Db,
+  _mail_service: MailService,
   props: request::PasswordNewResetProps,
 ) -> Result<response::Password, response::AuthError> {
   // no api key verification needed
@@ -365,7 +421,9 @@ pub async fn password_new_reset(
 }
 
 pub async fn password_new_change(
+  config: Config,
   db: Db,
+  _mail_service: MailService,
   props: request::PasswordNewChangeProps,
 ) -> Result<response::Password, response::AuthError> {
   let con = &mut *db.lock().await;
@@ -399,7 +457,9 @@ pub async fn password_new_change(
   fill_password(con, password)
 }
 pub async fn password_new_cancel(
+  config: Config,
   db: Db,
+  _mail_service: MailService,
   props: request::PasswordNewCancelProps,
 ) -> Result<response::Password, response::AuthError> {
   let con = &mut *db.lock().await;
@@ -425,7 +485,9 @@ pub async fn password_new_cancel(
 }
 
 pub async fn user_view(
+  config: Config,
   db: Db,
+  _mail_service: MailService,
   props: request::UserViewProps,
 ) -> Result<Vec<response::User>, response::AuthError> {
   let con = &mut *db.lock().await;
@@ -438,7 +500,9 @@ pub async fn user_view(
 }
 
 pub async fn password_view(
+  config: Config,
   db: Db,
+  _mail_service: MailService,
   props: request::PasswordViewProps,
 ) -> Result<Vec<response::Password>, response::AuthError> {
   let con = &mut *db.lock().await;
@@ -453,7 +517,9 @@ pub async fn password_view(
     .collect()
 }
 pub async fn api_key_view(
+  config: Config,
   db: Db,
+  _mail_service: MailService,
   props: request::ApiKeyViewProps,
 ) -> Result<Vec<response::ApiKey>, response::AuthError> {
   let con = &mut *db.lock().await;
