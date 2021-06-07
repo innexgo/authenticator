@@ -58,7 +58,7 @@ dependencies = [
 [[package]]
 name = "auth-service-api"
 version = "0.7.7"
-source = "git+https://github.com/innexgo/auth-service-api#40ffadeb5616eb475e542478ef31a40f5a57fdbc"
+source = "git+https://github.com/innexgo/auth-service-api#4d962d38d98220bd1d71300b1eb480217c846dc5"
 dependencies = [
  "serde",
  "strum",
@@ -632,7 +632,7 @@ dependencies = [
 [[package]]
 name = "mail-service-api"
 version = "0.0.1"
-source = "git+https://github.com/innexgo/mail-service-api#cfab09f214484523783182bb938e15c8070e8349"
+source = "git+https://github.com/innexgo/mail-service-api#24535ae18851ee2c63891051ba26f2a48044b15c"
 dependencies = [
  "reqwest",
  "serde",

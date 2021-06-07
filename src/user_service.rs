@@ -5,8 +5,8 @@ use std::convert::{TryFrom, TryInto};
 
 // returns the max user id and adds 1 to it
 fn next_id(con: &Connection) -> Result<i64, rusqlite::Error> {
-  let sql = "SELECT max(user_id) FROM user";
-  con.query_row(sql, [], |row| row.get(0))
+  let sql = "SELECT IFNULL(MAX(user_id), -1) FROM user";
+  con.query_row(sql, [], |row| row.get(0)).map(|v:i64| v + 1)
 }
 
 

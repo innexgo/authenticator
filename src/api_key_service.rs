@@ -5,8 +5,8 @@ use std::convert::{TryFrom, TryInto};
 
 // returns the max api_key id and adds 1 to it
 fn next_id(con: &Connection) -> Result<i64, rusqlite::Error> {
-  let sql = "SELECT max(api_key_id) FROM api_key";
-  con.query_row(sql, [], |row| row.get(0))
+  let sql = "SELECT IFNULL(MAX(api_key_id), -1) FROM api_key";
+  con.query_row(sql, [], |row| row.get(0)).map(|v:i64| v + 1)
 }
 
 impl TryFrom<&rusqlite::Row<'_>> for ApiKey {
