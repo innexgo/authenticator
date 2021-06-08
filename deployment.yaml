@@ -1,27 +1,101 @@
-apiVersion: apps/v1
-kind: Deployment
+# mail-service service
+apiVersion: v1
+kind: Service
 metadata:
-  name: auth-deployment
-  labels:
-    app: auth
+  name: mail-service-service
 spec:
-  replicas: 1
+  selector:
+    app: mail-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+# auth-service service
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service-service
+spec:
+  selector:
+    app: auth-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8080
+---
+# Mail Service StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mail-service-statefulset
+spec:
   selector:
     matchLabels:
-      app: auth-service
+      app: mail-service # has to match .spec.template.metadata.labels
+  serviceName: "mail-service-service"
+  replicas: 1 # by default is 1
   template:
     metadata:
       labels:
-        app: auth
+        app: mail-service # has to match .spec.selector.matchLabels
     spec:
+      terminationGracePeriodSeconds: 10
       containers:
-      - name: auth-service
-        image: auth:1.14.2
-        command: ['sh', '-c', 'echo "Hello, Kubernetes!" && sleep 3600']
+      - name: mail-service-container
+        imagePullPolicy: Never # This means it uses local docker image... will change to use public later
+        image: mail-service
         ports:
-        - containerPort: 80
-      - name: auth
-        image: auth:1.14.2
-        command: ['sh', '-c', 'echo "Hello, Kubernetes!" && sleep 3600']
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - name: mail-service-data
+          mountPath: /mnt  # mail-service-data will be mounted onto /mnt inside the container
+  volumeClaimTemplates:
+  - metadata:
+      name: mail-service-data-claim
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "mail-service-data-class"
+      resources:
+        requests:
+          storage: 1Gi
+---
+# Auth Service StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: auth-service-statefulset
+spec:
+  selector:
+    matchLabels:
+      app: auth-service # has to match .spec.template.metadata.labels
+  serviceName: "auth-service-service"
+  replicas: 1 # by default is 1
+  template:
+    metadata:
+      labels:
+        app: auth-service # has to match .spec.selector.matchLabels
+    spec:
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: auth-service-container
+        imagePullPolicy: Never # This means it uses local docker image... will change to use public later
+        image: auth-service
         ports:
-        - containerPort: 80
+        - containerPort: 8080
+          name: http
+        volumeMounts:
+        - name: auth-service-data
+          mountPath: /mnt  # auth-service-data will be mounted onto /mnt inside the container
+  volumeClaimTemplates:
+  - metadata:
+      name: auth-service-data-claim
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: "auth-service-data-class"
+      resources:
+        requests:
+          storage: 1Gi
+
+
