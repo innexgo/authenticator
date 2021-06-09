@@ -76,6 +76,7 @@ pub fn exists_by_email(con: &Connection, email: &str) -> Result<bool, rusqlite::
   Ok(count != 0)
 }
 
+#[allow(unused)]
 pub fn exists_by_user_id(con: &Connection, user_id: i64) -> Result<bool, rusqlite::Error> {
   let sql = "SELECT count(*) FROM user WHERE user_id=?";
   let count: i64 = con.query_row(sql, params![user_id], |row| row.get(0))?;

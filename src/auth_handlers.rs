@@ -547,6 +547,7 @@ pub async fn password_view(
     .map(|p| fill_password(con, p))
     .collect()
 }
+
 pub async fn api_key_view(
   _config: Config,
   db: Db,
@@ -563,4 +564,37 @@ pub async fn api_key_view(
     .into_iter()
     .map(|a| fill_api_key(con, a, None))
     .collect()
+}
+
+// special internal api
+pub async fn get_user_by_id(
+  _config: Config,
+  db: Db,
+  _mail_service: MailService,
+  props: request::GetUserByIdProps,
+) -> Result<response::User, response::AuthError> {
+  let con = &mut *db.lock().await;
+
+  let user = user_service::get_by_user_id(con, props.user_id)
+    .map_err(report_rusqlite_err)?
+    .ok_or(response::AuthError::UserNonexistent)?;
+
+  fill_user(con, user)
+}
+
+pub async fn get_user_by_api_key_if_valid(
+  _config: Config,
+  db: Db,
+  _mail_service: MailService,
+  props: request::GetUserByApiKeyIfValid,
+) -> Result<response::User, response::AuthError> {
+  let con = &mut *db.lock().await;
+
+  let api_key = get_api_key_if_valid(con, &props.api_key)?;
+
+  let user = user_service::get_by_user_id(con, api_key.creator_user_id)
+    .map_err(report_rusqlite_err)?
+    .ok_or(response::AuthError::UserNonexistent)?;
+
+  fill_user(con, user)
 }

@@ -7,6 +7,7 @@ use auth_service_api::response::AuthError;
 use mail_service_api::client::MailService;
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::future::Future;
 use warp::http::StatusCode;
 use warp::Filter;
 
@@ -16,53 +17,99 @@ pub fn api(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = Infallible> + Clone {
+  // public API
   api_info()
-    .or(verification_challenge_new(
+    .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
+      warp::path!("public" / "verification_challenge" / "new"),
+      auth_handlers::verification_challenge_new,
     ))
-    .or(api_key_new_valid(
+    .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
+      warp::path!("public" / "api_key" / "new_valid"),
+      auth_handlers::api_key_new_valid,
     ))
-    .or(api_key_new_cancel(
+    .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
+      warp::path!("public" / "api_key" / "new_cancel"),
+      auth_handlers::api_key_new_cancel,
     ))
-    .or(user_new(config.clone(), db.clone(), mail_service.clone()))
-    .or(password_reset_new(
+    .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
+      warp::path!("public" / "user" / "new"),
+      auth_handlers::user_new,
     ))
-    .or(password_new_reset(
+    .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
+      warp::path!("public" / "password_reset" / "new"),
+      auth_handlers::password_reset_new,
     ))
-    .or(password_new_change(
+    .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
+      warp::path!("public" / "password" / "new_reset"),
+      auth_handlers::password_new_reset,
     ))
-    .or(password_new_cancel(
+    .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
+      warp::path!("public" / "password" / "new_change"),
+      auth_handlers::password_new_change,
     ))
-    .or(user_view(config.clone(), db.clone(), mail_service.clone()))
-    .or(password_view(
+    .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
+      warp::path!("public" / "password" / "new_cancel"),
+      auth_handlers::password_new_cancel,
     ))
-    .or(api_key_view(
+    .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
+      warp::path!("public" / "user" / "view"),
+      auth_handlers::user_view,
+    ))
+    .or(adapter(
+      config.clone(),
+      db.clone(),
+      mail_service.clone(),
+      warp::path!("public" / "password" / "view"),
+      auth_handlers::password_view,
+    ))
+    .or(adapter(
+      config.clone(),
+      db.clone(),
+      mail_service.clone(),
+      warp::path!("public" / "api_key" / "view"),
+      auth_handlers::api_key_view,
+    ))
+    // Private API (note that there's no "public" at the beginning, so nginx won't expose it)
+    .or(adapter(
+      config.clone(),
+      db.clone(),
+      mail_service.clone(),
+      warp::path!("get_user_by_id"),
+      auth_handlers::get_user_by_id,
+    ))
+    .or(adapter(
+      config.clone(),
+      db.clone(),
+      mail_service.clone(),
+      warp::path!("get_user_by_api_key_if_valid"),
+      auth_handlers::get_user_by_api_key_if_valid,
     ))
     .recover(handle_rejection)
 }
@@ -74,207 +121,36 @@ fn api_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection
   warp::path!("info").map(move || warp::reply::json(&info))
 }
 
-// lets you pass in an arbitrary parameter
-fn with<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
-  warp::any().map(move || t.clone())
-}
-
-fn api_key_new_valid(
+// this function adapts a handler function to a warp filter
+// it accepts an initial path filter
+fn adapter<PropsType, ResponseType, F>(
   config: Config,
   db: Db,
   mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "api_key" / "new_valid")
+  filter: impl Filter<Extract = (), Error = warp::Rejection> + Clone,
+  handler: fn(Config, Db, MailService, PropsType) -> F,
+) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone
+where
+  F: Future<Output = Result<ResponseType, AuthError>> + Send,
+  PropsType: Send + serde::de::DeserializeOwned,
+  ResponseType: Send + serde::ser::Serialize,
+{
+  // lets you pass in an arbitrary parameter
+  fn with<T: Clone + Send>(t: T) -> impl Filter<Extract = (T,), Error = Infallible> + Clone {
+    warp::any().map(move || t.clone())
+  }
+
+  filter
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
     .and(warp::body::json())
     .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::api_key_new_valid(config, db, mail_service, props)
+      handler(config, db, mail_service, props)
         .await
         .map_err(auth_error)
     })
-    .map(|x| warp::reply::json(&x))
-}
-
-fn api_key_new_cancel(
-  config: Config,
-  db: Db,
-  mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "api_key" / "new_cancel")
-    .and(with(config))
-    .and(with(db))
-    .and(with(mail_service))
-    .and(warp::body::json())
-    .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::api_key_new_cancel(config, db, mail_service, props)
-        .await
-        .map_err(auth_error)
-    })
-    .map(|x| warp::reply::json(&x))
-}
-
-fn verification_challenge_new(
-  config: Config,
-  db: Db,
-  mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "verification_challenge" / "new")
-    .and(with(config))
-    .and(with(db))
-    .and(with(mail_service))
-    .and(warp::body::json())
-    .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::verification_challenge_new(config, db, mail_service, props)
-        .await
-        .map_err(auth_error)
-    })
-    .map(|x| warp::reply::json(&x))
-}
-
-fn user_new(
-  config: Config,
-  db: Db,
-  mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "user" / "new")
-    .and(with(config))
-    .and(with(db))
-    .and(with(mail_service))
-    .and(warp::body::json())
-    .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::user_new(config, db, mail_service, props)
-        .await
-        .map_err(auth_error)
-    })
-    .map(|x| warp::reply::json(&x))
-}
-
-fn password_reset_new(
-  config: Config,
-  db: Db,
-  mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "password_reset" / "new")
-    .and(with(config))
-    .and(with(db))
-    .and(with(mail_service))
-    .and(warp::body::json())
-    .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::password_reset_new(config, db, mail_service, props)
-        .await
-        .map_err(auth_error)
-    })
-    .map(|x| warp::reply::json(&x))
-}
-
-fn password_new_reset(
-  config: Config,
-  db: Db,
-  mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "password" / "new_reset")
-    .and(with(config))
-    .and(with(db))
-    .and(with(mail_service))
-    .and(warp::body::json())
-    .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::password_new_reset(config, db, mail_service, props)
-        .await
-        .map_err(auth_error)
-    })
-    .map(|x| warp::reply::json(&x))
-}
-
-fn password_new_change(
-  config: Config,
-  db: Db,
-  mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "password" / "new_change")
-    .and(with(config))
-    .and(with(db))
-    .and(with(mail_service))
-    .and(warp::body::json())
-    .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::password_new_change(config, db, mail_service, props)
-        .await
-        .map_err(auth_error)
-    })
-    .map(|x| warp::reply::json(&x))
-}
-
-fn password_new_cancel(
-  config: Config,
-  db: Db,
-  mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "password" / "new_cancel")
-    .and(with(config))
-    .and(with(db))
-    .and(with(mail_service))
-    .and(warp::body::json())
-    .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::password_new_cancel(config, db, mail_service, props)
-        .await
-        .map_err(auth_error)
-    })
-    .map(|x| warp::reply::json(&x))
-}
-
-fn user_view(
-  config: Config,
-  db: Db,
-  mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "user" / "view")
-    .and(with(config))
-    .and(with(db))
-    .and(with(mail_service))
-    .and(warp::body::json())
-    .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::user_view(config, db, mail_service, props)
-        .await
-        .map_err(auth_error)
-    })
-    .map(|x| warp::reply::json(&x))
-}
-
-fn password_view(
-  config: Config,
-  db: Db,
-  mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "password" / "view")
-    .and(with(config))
-    .and(with(db))
-    .and(with(mail_service))
-    .and(warp::body::json())
-    .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::password_view(config, db, mail_service, props)
-        .await
-        .map_err(auth_error)
-    })
-    .map(|x| warp::reply::json(&x))
-}
-
-fn api_key_view(
-  config: Config,
-  db: Db,
-  mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("public" / "api_key" / "view")
-    .and(with(config))
-    .and(with(db))
-    .and(with(mail_service))
-    .and(warp::body::json())
-    .and_then(async move |config, db, mail_service, props| {
-      auth_handlers::api_key_view(config, db, mail_service, props)
-        .await
-        .map_err(auth_error)
-    })
-    .map(|x| warp::reply::json(&x))
+    .map(|x| warp::reply::json(&Ok::<ResponseType, ()>(x)))
 }
 
 // This function receives a `Rejection` and tries to return a custom
@@ -285,31 +161,34 @@ async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, Infa
 
   if err.is_not_found() {
     code = StatusCode::NOT_FOUND;
-    message = "NOT_FOUND";
+    message = AuthError::NotFound;
   } else if err
     .find::<warp::filters::body::BodyDeserializeError>()
     .is_some()
   {
-    message = "BAD_REQUEST";
+    message = AuthError::DecodeError;
     code = StatusCode::BAD_REQUEST;
   } else if err.find::<warp::reject::MethodNotAllowed>().is_some() {
     code = StatusCode::METHOD_NOT_ALLOWED;
-    message = "METHOD_NOT_ALLOWED";
+    message = AuthError::MethodNotAllowed;
   } else if let Some(AuthErrorRejection(auth_error)) = err.find() {
     code = StatusCode::BAD_REQUEST;
-    message = auth_error.as_ref();
+    message = auth_error.clone();
   } else {
     // We should have expected this... Just log and say its a 500
     utils::log(utils::Event {
-      msg: "unknown error kind".to_owned(),
+      msg: "intercepted unknown error kind".to_owned(),
       source: None,
       severity: utils::SeverityKind::Error,
     });
     code = StatusCode::INTERNAL_SERVER_ERROR;
-    message = "UNKNOWN";
+    message = AuthError::Unknown;
   }
 
-  Ok(warp::reply::with_status(format!("\"{}\"", message), code))
+  Ok(warp::reply::with_status(
+    warp::reply::json(&Err::<(), AuthError>(message)),
+    code,
+  ))
 }
 
 // This type represents errors that we can generate

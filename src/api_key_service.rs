@@ -67,16 +67,6 @@ pub fn add(
   })
 }
 
-pub fn get_by_api_key_id(
-  con: &Connection,
-  api_key_id: i64,
-) -> Result<Option<ApiKey>, rusqlite::Error> {
-  let sql = "SELECT * FROM api_key WHERE api_key_id=?";
-  con
-    .query_row(sql, params![api_key_id], |row| row.try_into())
-    .optional()
-}
-
 pub fn get_by_api_key_hash(
   con: &Connection,
   api_key_hash: &str,
