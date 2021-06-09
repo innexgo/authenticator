@@ -16,4 +16,5 @@ FROM alpine
 COPY --from=builder /home/rust/.cargo/bin/auth-service "/bin/auth-service"
 
 # this is how it actually gets run
+# in kubernetes: you should probably provide some arguments though
 CMD ["/bin/auth-service"]

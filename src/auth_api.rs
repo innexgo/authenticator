@@ -84,7 +84,7 @@ fn api_key_new_valid(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("api_key" / "new_valid")
+  warp::path!("public" / "api_key" / "new_valid")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
@@ -102,7 +102,7 @@ fn api_key_new_cancel(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("api_key" / "new_cancel")
+  warp::path!("public" / "api_key" / "new_cancel")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
@@ -120,7 +120,7 @@ fn verification_challenge_new(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("verification_challenge" / "new")
+  warp::path!("public" / "verification_challenge" / "new")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
@@ -138,7 +138,7 @@ fn user_new(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("user" / "new")
+  warp::path!("public" / "user" / "new")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
@@ -156,7 +156,7 @@ fn password_reset_new(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("password_reset" / "new")
+  warp::path!("public" / "password_reset" / "new")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
@@ -174,7 +174,7 @@ fn password_new_reset(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("password" / "new_reset")
+  warp::path!("public" / "password" / "new_reset")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
@@ -192,7 +192,7 @@ fn password_new_change(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("password" / "new_change")
+  warp::path!("public" / "password" / "new_change")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
@@ -210,7 +210,7 @@ fn password_new_cancel(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("password" / "new_cancel")
+  warp::path!("public" / "password" / "new_cancel")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
@@ -228,7 +228,7 @@ fn user_view(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("user" / "view")
+  warp::path!("public" / "user" / "view")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
@@ -246,7 +246,7 @@ fn password_view(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("password" / "view")
+  warp::path!("public" / "password" / "view")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))
@@ -264,7 +264,7 @@ fn api_key_view(
   db: Db,
   mail_service: MailService,
 ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
-  warp::path!("api_key" / "view")
+  warp::path!("public" / "api_key" / "view")
     .and(with(config))
     .and(with(db))
     .and(with(mail_service))

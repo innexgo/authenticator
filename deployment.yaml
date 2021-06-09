@@ -42,24 +42,21 @@ spec:
     spec:
       terminationGracePeriodSeconds: 10
       containers:
-      - name: mail-service-container
-        imagePullPolicy: Never # This means it uses local docker image... will change to use public later
-        image: mail-service
-        ports:
-        - containerPort: 8080
-          name: http
-        volumeMounts:
-        - name: mail-service-data
-          mountPath: /mnt  # mail-service-data will be mounted onto /mnt inside the container
-  volumeClaimTemplates:
-  - metadata:
-      name: mail-service-data-claim
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "mail-service-data-class"
-      resources:
-        requests:
-          storage: 1Gi
+        - name: mail-service-container
+          imagePullPolicy: Never # This means it uses local docker image... will change to use public later
+          image: mail-service
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: mail-service-volume
+              mountPath: /mnt # mail-service-data will be mounted onto /mnt inside the container
+          command:
+            ["/bin/mail-service", "--port=8080", "--database-url=/mnt/mail.db"]
+      volumes:
+        - name: mail-service-volume
+          hostPath:
+            path: /mnt # directory location on host
 ---
 # Auth Service StatefulSet
 apiVersion: apps/v1
@@ -79,23 +76,24 @@ spec:
     spec:
       terminationGracePeriodSeconds: 10
       containers:
-      - name: auth-service-container
-        imagePullPolicy: Never # This means it uses local docker image... will change to use public later
-        image: auth-service
-        ports:
-        - containerPort: 8080
-          name: http
-        volumeMounts:
-        - name: auth-service-data
-          mountPath: /mnt  # auth-service-data will be mounted onto /mnt inside the container
-  volumeClaimTemplates:
-  - metadata:
-      name: auth-service-data-claim
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "auth-service-data-class"
-      resources:
-        requests:
-          storage: 1Gi
-
-
+        - name: auth-service-container
+          imagePullPolicy: Never # This means it uses local docker image... will change to use public later
+          image: auth-service
+          ports:
+            - containerPort: 8080
+              name: http
+          volumeMounts:
+            - name: auth-service-volume
+              mountPath: /mnt # auth-service-data will be mounted onto /mnt inside the container
+          command:
+            [
+              "/bin/auth-service",
+              "--port=8080",
+              "--database-url=/mnt/auth.db",
+              "--site-external-url=http://localhost:8080",
+              "--mail-service-url=http://$(MAIL_SERVICE_SERVICE_HOST)",
+            ]
+      volumes:
+        - name: auth-service-volume
+          hostPath:
+            path: /mnt # directory location on host
