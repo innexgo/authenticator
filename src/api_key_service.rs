@@ -69,7 +69,7 @@ pub fn get_by_api_key_hash(
 ) -> Result<Option<ApiKey>, postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT * FROM api_key WHERE api_key_hash=$1 ORDER BY api_key_id DESC LIMIT 1",
+      "SELECT * FROM api_key WHERE api_key_hash=$1",
       &[&api_key_hash],
     )?
     .map(|x| x.into());
