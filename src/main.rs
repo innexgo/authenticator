@@ -1,6 +1,6 @@
 #![feature(async_closure)]
 use clap::Clap;
-use rusqlite::Connection;
+use postgres::{Client, NoTls};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
@@ -33,7 +33,7 @@ struct Opts {
   mail_service_url: String,
 }
 
-pub type Db = Arc<Mutex<Connection>>;
+pub type Db = Arc<Mutex<Client>>;
 
 #[derive(Clone)]
 pub struct Config {
@@ -50,7 +50,7 @@ async fn main() {
   } = Opts::parse();
 
   // open connection to db
-  let db: Db = Arc::new(Mutex::new(Connection::open(database_url).unwrap()));
+  let db: Db = Arc::new(Mutex::new(Client::connect(&database_url, NoTls).unwrap()));
 
   // open connection to mail service
   let mail_service = MailService::new(&mail_service_url).await;

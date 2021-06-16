@@ -1,40 +1,45 @@
 use super::auth_db_types::VerificationChallenge;
 use super::utils::current_time_millis;
-use rusqlite::{params, Connection, OptionalExtension};
-use std::convert::{TryFrom, TryInto};
+use postgres::GenericClient;
 
-impl TryFrom<&rusqlite::Row<'_>> for VerificationChallenge {
-  type Error = rusqlite::Error;
-
+impl From<postgres::row::Row> for VerificationChallenge {
   // select * from user order only, otherwise it will fail
-  fn try_from(row: &rusqlite::Row) -> Result<VerificationChallenge, rusqlite::Error> {
-    Ok(VerificationChallenge {
-      verification_challenge_key_hash: row.get(0)?,
-      creation_time: row.get(1)?,
-      name: row.get(2)?,
-      email: row.get(3)?,
-      password_hash: row.get(4)?,
-    })
+  fn from(row: postgres::row::Row) -> VerificationChallenge {
+    VerificationChallenge {
+      verification_challenge_key_hash: row.get("verification_challenge_key_hash"),
+      creation_time: row.get("creation_time"),
+      name: row.get("name"),
+      email: row.get("email"),
+      password_hash: row.get("password_hash"),
+    }
   }
 }
 
 pub fn add(
-  con: &mut Connection,
+  con: &mut impl GenericClient,
   verification_challenge_key_hash: String,
   name: String,
   email: String,
   password_hash: String,
-) -> Result<VerificationChallenge, rusqlite::Error> {
-  let sql = "INSERT INTO verification_challenge values (?, ?, ?, ?, ?)";
+) -> Result<VerificationChallenge, postgres::Error> {
   let creation_time = current_time_millis();
+
   con.execute(
-    sql,
-    params![
-      verification_challenge_key_hash,
-      creation_time,
-      name,
-      email,
-      password_hash
+    "INSERT INTO
+     verification_challenge(
+         verification_challenge_key_hash,
+         creation_time,
+         name,
+         email,
+         password_hash
+     )
+     VALUES($1, $2, $3, $4, $5)",
+    &[
+      &verification_challenge_key_hash,
+      &creation_time,
+      &name,
+      &email,
+      &password_hash,
     ],
   )?;
 
@@ -48,22 +53,29 @@ pub fn add(
 }
 
 pub fn get_by_verification_challenge_key_hash(
-  con: &mut Connection,
+  con: &mut impl GenericClient,
   verification_challenge_key_hash: &str,
-) -> Result<Option<VerificationChallenge>, rusqlite::Error> {
-  let sql = "SELECT * FROM verification_challenge WHERE verification_challenge_key_hash=?";
-  con
-    .query_row(sql, [verification_challenge_key_hash], |row| row.try_into())
-    .optional()
+) -> Result<Option<VerificationChallenge>, postgres::Error> {
+  let result = con
+    .query_opt(
+      "SELECT * FROM verification_challenge WHERE verification_challenge_key_hash=$1",
+      &[&verification_challenge_key_hash],
+    )?
+    .map(|row| row.into());
+
+  Ok(result)
 }
 
 pub fn get_last_email_sent_time(
-  con: &mut Connection,
+  con: &mut impl GenericClient,
   email: &str,
-) -> Result<Option<i64>, rusqlite::Error> {
-  let sql = "SELECT * FROM verification_challenge WHERE email=? ORDER BY creation_time LIMIT 1";
-  con
-    .query_row(sql, [email], |row| row.try_into())
-    .optional()
-    .map(|vco| vco.map(|vc: VerificationChallenge| vc.creation_time))
+) -> Result<Option<i64>, postgres::Error> {
+  let time = con
+    .query_one(
+      "SELECT MAX(creation_time) FROM verification_challenge WHERE email=$1",
+      &[&email],
+    )?
+    .get(0);
+
+  Ok(time)
 }

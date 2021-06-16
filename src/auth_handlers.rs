@@ -27,7 +27,7 @@ fn report_internal_err<E: std::error::Error>(e: E) -> response::AuthError {
   response::AuthError::Unknown
 }
 
-fn report_rusqlite_err(e: rusqlite::Error) -> response::AuthError {
+fn report_postgres_err(e: postgres::Error) -> response::AuthError {
   utils::log(utils::Event {
     msg: e.to_string(),
     source: e.source().map(|e| e.to_string()),
@@ -53,7 +53,7 @@ fn report_mail_err(e: MailError) -> response::AuthError {
 }
 
 fn fill_user(
-  _con: &rusqlite::Connection,
+  _con: &mut postgres::Client,
   user: User,
 ) -> Result<response::User, response::AuthError> {
   Ok(response::User {
@@ -65,19 +65,18 @@ fn fill_user(
 }
 
 fn fill_api_key(
-  con: &rusqlite::Connection,
+  con: &mut postgres::Client,
   api_key: ApiKey,
   key: Option<String>,
 ) -> Result<response::ApiKey, response::AuthError> {
+  let creator = user_service::get_by_user_id(con, api_key.creator_user_id)
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::UserNonexistent)?;
+
   Ok(response::ApiKey {
     api_key_id: api_key.api_key_id,
     creation_time: api_key.creation_time,
-    creator: fill_user(
-      con,
-      user_service::get_by_user_id(con, api_key.creator_user_id)
-        .map_err(report_rusqlite_err)?
-        .ok_or(response::AuthError::UserNonexistent)?,
-    )?,
+    creator: fill_user(con, creator)?,
     api_key_data: match api_key.api_key_kind {
       request::ApiKeyKind::Valid => response::ApiKeyData::Valid {
         duration: api_key.duration,
@@ -89,24 +88,23 @@ fn fill_api_key(
 }
 
 fn fill_password(
-  con: &rusqlite::Connection,
+  con: &mut postgres::Client,
   password: Password,
 ) -> Result<response::Password, response::AuthError> {
+  let creator = user_service::get_by_user_id(con, password.creator_user_id)
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::UserNonexistent)?;
+
   Ok(response::Password {
     password_id: password.password_id,
     creation_time: password.creation_time,
-    creator: fill_user(
-      con,
-      user_service::get_by_user_id(con, password.creator_user_id)
-        .map_err(report_rusqlite_err)?
-        .ok_or(response::AuthError::UserNonexistent)?,
-    )?,
+    creator: fill_user(con, creator)?,
     password_kind: password.password_kind,
   })
 }
 
 fn fill_password_reset(
-  _con: &rusqlite::Connection,
+  _con: &postgres::Client,
   password_reset: PasswordReset,
 ) -> Result<response::PasswordReset, response::AuthError> {
   Ok(response::PasswordReset {
@@ -115,7 +113,7 @@ fn fill_password_reset(
 }
 
 fn fill_verification_challenge(
-  _con: &rusqlite::Connection,
+  _con: &postgres::Client,
   verification_challenge: VerificationChallenge,
 ) -> Result<response::VerificationChallenge, response::AuthError> {
   Ok(response::VerificationChallenge {
@@ -126,11 +124,11 @@ fn fill_verification_challenge(
 }
 
 pub fn get_api_key_if_valid(
-  con: &mut rusqlite::Connection,
+  con: &mut postgres::Client,
   api_key: &str,
 ) -> Result<ApiKey, response::AuthError> {
   let creator_api_key = api_key_service::get_by_api_key_hash(con, &utils::hash_str(api_key))
-    .map_err(report_rusqlite_err)?
+    .map_err(report_postgres_err)?
     .ok_or(response::AuthError::ApiKeyNonexistent)?;
 
   if utils::current_time_millis() > creator_api_key.creation_time + creator_api_key.duration {
@@ -149,11 +147,11 @@ pub async fn api_key_new_valid(
   let con = &mut *db.lock().await;
 
   let user = user_service::get_by_user_email(con, &props.user_email)
-    .map_err(report_rusqlite_err)?
+    .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
   let password = password_service::get_by_password_id(con, user.user_id)
-    .map_err(report_rusqlite_err)?
+    .map_err(report_postgres_err)?
     .ok_or(response::AuthError::PasswordNonexistent)?;
 
   // validate password with bcrypt
@@ -165,7 +163,7 @@ pub async fn api_key_new_valid(
 
   let raw_api_key = utils::gen_random_string();
 
-  let mut sp = con.savepoint().map_err(report_rusqlite_err)?;
+  let mut sp = con.transaction().map_err(report_postgres_err)?;
 
   // add new api key
   let api_key = api_key_service::add(
@@ -175,9 +173,9 @@ pub async fn api_key_new_valid(
     request::ApiKeyKind::Valid,
     props.duration,
   )
-  .map_err(report_rusqlite_err)?;
+  .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_rusqlite_err)?;
+  sp.commit().map_err(report_postgres_err)?;
 
   fill_api_key(con, api_key, Some(raw_api_key))
 }
@@ -199,7 +197,7 @@ pub async fn api_key_new_cancel(
     return Err(response::AuthError::ApiKeyUnauthorized);
   }
 
-  let mut sp = con.savepoint().map_err(report_rusqlite_err)?;
+  let mut sp = con.transaction().map_err(report_postgres_err)?;
 
   // cancel keys
   let key_cancel = api_key_service::add(
@@ -209,9 +207,9 @@ pub async fn api_key_new_cancel(
     request::ApiKeyKind::Cancel,
     0,
   )
-  .map_err(report_rusqlite_err)?;
+  .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_rusqlite_err)?;
+  sp.commit().map_err(report_postgres_err)?;
 
   // return json
   fill_api_key(con, key_cancel, None)
@@ -241,13 +239,13 @@ pub async fn verification_challenge_new(
   let con = &mut *db.lock().await;
 
   // if user name is taken
-  if user_service::exists_by_email(con, &props.user_email).map_err(report_rusqlite_err)? {
+  if user_service::exists_by_email(con, &props.user_email).map_err(report_postgres_err)? {
     return Err(response::AuthError::UserExistent);
   }
 
   let last_email_sent_time =
     verification_challenge_service::get_last_email_sent_time(con, &props.user_email)
-      .map_err(report_rusqlite_err)?;
+      .map_err(report_postgres_err)?;
 
   if let Some(time) = last_email_sent_time {
     if time + FIFTEEN_MINUTES as i64 > utils::current_time_millis() {
@@ -291,7 +289,7 @@ pub async fn verification_challenge_new(
     props.user_email,
     utils::hash_password(&props.user_password).map_err(report_internal_err)?,
   )
-  .map_err(report_rusqlite_err)?;
+  .map_err(report_postgres_err)?;
 
   // return json
   fill_verification_challenge(con, verification_challenge)
@@ -308,14 +306,14 @@ pub async fn user_new(
 
   // check that the verification challenge exists
   let vc = verification_challenge_service::get_by_verification_challenge_key_hash(con, vckh)
-    .map_err(report_rusqlite_err)?
+    .map_err(report_postgres_err)?
     .ok_or(response::AuthError::VerificationChallengeNonexistent)?;
 
   // check if the verification challenge was not already used
   // and that the email isn't already in use by another user
   if user_service::exists_by_verification_challenge_key_hash(con, vckh)
-    .map_err(report_rusqlite_err)?
-    || user_service::exists_by_email(con, &vc.email).map_err(report_rusqlite_err)?
+    .map_err(report_postgres_err)?
+    || user_service::exists_by_email(con, &vc.email).map_err(report_postgres_err)?
   {
     return Err(response::AuthError::UserExistent);
   }
@@ -328,10 +326,10 @@ pub async fn user_new(
 
   let vc_password_hash = vc.password_hash.clone();
 
-  let mut sp = con.savepoint().map_err(report_rusqlite_err)?;
+  let mut sp = con.transaction().map_err(report_postgres_err)?;
 
   // create user
-  let user = user_service::add(&mut sp, vc).map_err(report_rusqlite_err)?;
+  let user = user_service::add(&mut sp, vc).map_err(report_postgres_err)?;
 
   // create password
   password_service::add(
@@ -341,9 +339,9 @@ pub async fn user_new(
     vc_password_hash,
     String::new(),
   )
-  .map_err(report_rusqlite_err)?;
+  .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_rusqlite_err)?;
+  sp.commit().map_err(report_postgres_err)?;
 
   // return filled struct
   fill_user(con, user)
@@ -357,7 +355,7 @@ pub async fn password_reset_new(
   let con = &mut *db.lock().await;
 
   let user = user_service::get_by_user_email(con, &props.user_email)
-    .map_err(report_rusqlite_err)?
+    .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
   let raw_key = utils::gen_random_string();
@@ -384,13 +382,13 @@ pub async fn password_reset_new(
     .await
     .map_err(report_mail_err)?;
 
-  let mut sp = con.savepoint().map_err(report_rusqlite_err)?;
+  let mut sp = con.transaction().map_err(report_postgres_err)?;
 
   let password_reset =
     password_reset_service::add(&mut sp, utils::hash_str(&raw_key), user.user_id)
-      .map_err(report_rusqlite_err)?;
+      .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_rusqlite_err)?;
+  sp.commit().map_err(report_postgres_err)?;
 
   // fill struct
   fill_password_reset(con, password_reset)
@@ -411,12 +409,12 @@ pub async fn password_new_reset(
     con,
     &utils::hash_str(&props.password_reset_key),
   )
-  .map_err(report_rusqlite_err)?
+  .map_err(report_postgres_err)?
   .ok_or(response::AuthError::PasswordResetNonexistent)?;
 
   // deny if we alread created a password from this reset
   if password_service::exists_by_password_reset_key_hash(con, &psr.password_reset_key_hash)
-    .map_err(report_rusqlite_err)?
+    .map_err(report_postgres_err)?
   {
     return Err(response::AuthError::PasswordExistent);
   }
@@ -434,7 +432,7 @@ pub async fn password_new_reset(
   // attempt to hash password
   let new_password_hash = utils::hash_password(&props.new_password).map_err(report_internal_err)?;
 
-  let mut sp = con.savepoint().map_err(report_rusqlite_err)?;
+  let mut sp = con.transaction().map_err(report_postgres_err)?;
 
   // create password
   let password = password_service::add(
@@ -444,9 +442,9 @@ pub async fn password_new_reset(
     new_password_hash,
     psr.password_reset_key_hash,
   )
-  .map_err(report_rusqlite_err)?;
+  .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_rusqlite_err)?;
+  sp.commit().map_err(report_postgres_err)?;
 
   fill_password(con, password)
 }
@@ -470,7 +468,7 @@ pub async fn password_new_change(
   // attempt to hash password
   let new_password_hash = utils::hash_password(&props.new_password).map_err(report_internal_err)?;
 
-  let mut sp = con.savepoint().map_err(report_rusqlite_err)?;
+  let mut sp = con.transaction().map_err(report_postgres_err)?;
 
   // create password
   let password = password_service::add(
@@ -480,9 +478,9 @@ pub async fn password_new_change(
     new_password_hash,
     String::new(),
   )
-  .map_err(report_rusqlite_err)?;
+  .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_rusqlite_err)?;
+  sp.commit().map_err(report_postgres_err)?;
 
   // return filled struct
   fill_password(con, password)
@@ -498,7 +496,7 @@ pub async fn password_new_cancel(
   // api key verification required
   let creator_key = get_api_key_if_valid(con, &props.api_key)?;
 
-  let mut sp = con.savepoint().map_err(report_rusqlite_err)?;
+  let mut sp = con.transaction().map_err(report_postgres_err)?;
 
   // create password
   let password = password_service::add(
@@ -508,9 +506,9 @@ pub async fn password_new_cancel(
     String::new(),
     String::new(),
   )
-  .map_err(report_rusqlite_err)?;
+  .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_rusqlite_err)?;
+  sp.commit().map_err(report_postgres_err)?;
 
   fill_password(con, password)
 }
@@ -525,7 +523,7 @@ pub async fn user_view(
   // api key verification required
   let _ = get_api_key_if_valid(con, &props.api_key)?;
   // get users
-  let users = user_service::query(con, props).map_err(report_rusqlite_err)?;
+  let users = user_service::query(con, props).map_err(report_postgres_err)?;
   // return users
   users.into_iter().map(|u| fill_user(con, u)).collect()
 }
@@ -540,7 +538,7 @@ pub async fn password_view(
   // api key verification required
   let _ = get_api_key_if_valid(con, &props.api_key)?;
   // get passwords
-  let passwords = password_service::query(con, props).map_err(report_rusqlite_err)?;
+  let passwords = password_service::query(con, props).map_err(report_postgres_err)?;
   // return passwords
   passwords
     .into_iter()
@@ -558,7 +556,7 @@ pub async fn api_key_view(
   // api key verification required
   let _ = get_api_key_if_valid(con, &props.api_key)?;
   // get users
-  let api_keys = api_key_service::query(con, props).map_err(report_rusqlite_err)?;
+  let api_keys = api_key_service::query(con, props).map_err(report_postgres_err)?;
   // return
   api_keys
     .into_iter()
@@ -576,7 +574,7 @@ pub async fn get_user_by_id(
   let con = &mut *db.lock().await;
 
   let user = user_service::get_by_user_id(con, props.user_id)
-    .map_err(report_rusqlite_err)?
+    .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
   fill_user(con, user)
@@ -593,7 +591,7 @@ pub async fn get_user_by_api_key_if_valid(
   let api_key = get_api_key_if_valid(con, &props.api_key)?;
 
   let user = user_service::get_by_user_id(con, api_key.creator_user_id)
-    .map_err(report_rusqlite_err)?
+    .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
   fill_user(con, user)

@@ -1,60 +1,56 @@
 use super::auth_db_types::*;
 use super::utils::current_time_millis;
-use rusqlite::{named_params, params, Savepoint, Connection, OptionalExtension};
-use std::convert::{TryFrom, TryInto};
+use postgres::GenericClient;
+use std::convert::TryInto;
 
-// returns the max api_key id and adds 1 to it
-fn next_id(con: &Connection) -> Result<i64, rusqlite::Error> {
-  let sql = "SELECT IFNULL(MAX(api_key_id), -1) FROM api_key";
-  con.query_row(sql, [], |row| row.get(0)).map(|v:i64| v + 1)
-}
-
-impl TryFrom<&rusqlite::Row<'_>> for ApiKey {
-  type Error = rusqlite::Error;
-
+impl From<postgres::row::Row> for ApiKey {
   // select * from api_key order only, otherwise it will fail
-  fn try_from(row: &rusqlite::Row) -> Result<ApiKey, rusqlite::Error> {
-    Ok(ApiKey {
-      api_key_id: row.get(0)?,
-      creation_time: row.get(1)?,
-      creator_user_id: row.get(2)?,
-      api_key_hash: row.get(3)?,
+  fn from(row: postgres::row::Row) -> ApiKey {
+    ApiKey {
+      api_key_id: row.get("api_key_id"),
+      creation_time: row.get("creation_time"),
+      creator_user_id: row.get("creator_user_id"),
+      api_key_hash: row.get("api_key_hash"),
       // means that there's a mismatch between the values of the enum and the value stored in the column
-      api_key_kind: row
-        .get::<_, u8>(4)?
+      api_key_kind: (row.get::<&str, i64>("api_key_kind") as u8)
         .try_into()
-        .map_err(|x| rusqlite::Error::IntegralValueOutOfRange(4, x as i64))?,
-      duration: row.get(5)?,
-    })
+        .unwrap(),
+      duration: row.get("duration"),
+    }
   }
 }
 
 pub fn add(
-  con: &mut Savepoint,
+  con: &mut impl GenericClient,
   creator_user_id: i64,
   api_key_hash: String,
   api_key_kind: auth_service_api::request::ApiKeyKind,
   duration: i64,
-) -> Result<ApiKey, rusqlite::Error> {
-  let sp = con.savepoint()?;
-  let api_key_id = next_id(&sp)?;
+) -> Result<ApiKey, postgres::Error> {
   let creation_time = current_time_millis();
 
-  let sql = "INSERT INTO api_key values (?, ?, ?, ?, ?, ?)";
-  sp.execute(
-    sql,
-    params![
-      api_key_id,
-      creation_time,
-      creator_user_id,
-      api_key_hash,
-      api_key_kind.clone() as u8,
-      duration,
-    ],
-  )?;
-
-  // commit savepoint
-  sp.commit()?;
+  let api_key_id = con
+    .query_one(
+      "INSERT INTO
+       api_key(
+           creation_time,
+           creator_user_id,
+           api_key_hash,
+           api_key_kind,
+           duration
+       )
+       VALUES($1, $2, $3, $4, $5)
+       RETURNING api_key_id
+      ",
+      &[
+        &creation_time,
+        &creator_user_id,
+        &api_key_hash,
+        &(api_key_kind.clone() as i64),
+        &duration,
+      ],
+    )?
+    .get(0);
 
   // return api_key
   Ok(ApiKey {
@@ -68,19 +64,23 @@ pub fn add(
 }
 
 pub fn get_by_api_key_hash(
-  con: &Connection,
+  con: &mut impl GenericClient,
   api_key_hash: &str,
-) -> Result<Option<ApiKey>, rusqlite::Error> {
-  let sql = "SELECT * FROM api_key WHERE api_key_hash=? ORDER BY api_key_id DESC LIMIT 1";
-  con
-    .query_row(sql, params![api_key_hash], |row| row.try_into())
-    .optional()
+) -> Result<Option<ApiKey>, postgres::Error> {
+  let result = con
+    .query_opt(
+      "SELECT * FROM api_key WHERE api_key_hash=$1 ORDER BY api_key_id DESC LIMIT 1",
+      &[&api_key_hash],
+    )?
+    .map(|x| x.into());
+
+  Ok(result)
 }
 
 pub fn query(
-  con: &Connection,
-  props: auth_service_api::request::ApiKeyViewProps
-) -> Result<Vec<ApiKey>, rusqlite::Error> {
+  con: &mut impl GenericClient,
+  props: auth_service_api::request::ApiKeyViewProps,
+) -> Result<Vec<ApiKey>, postgres::Error> {
   // TODO prevent getting meaningless duration
 
   let sql = [
@@ -91,37 +91,42 @@ pub fn query(
         ""
     },
     " WHERE 1 = 1",
-    " AND (:api_key_id      == NULL OR a.api_key_id = :api_key_id)",
-    " AND (:creation_time   == NULL OR a.creation_time = :creation_time)",
-    " AND (:creation_time   == NULL OR a.creation_time >= :min_creation_time)",
-    " AND (:creation_time   == NULL OR a.creation_time <= :max_creation_time)",
-    " AND (:creator_user_id == NULL OR a.creator_user_id = :creator_user_id)",
-    " AND (:duration        == NULL OR a.duration = :duration)",
-    " AND (:duration        == NULL OR a.duration >= :min_duration)",
-    " AND (:duration        == NULL OR a.duration <= :max_duration)",
-    " AND (:api_key_kind    == NULL OR a.api_key_kind = :api_key_kind)",
+    " AND ($1 == NULL OR a.api_key_id = $1)",
+    " AND ($2 == NULL OR a.creation_time = $2)",
+    " AND ($3 == NULL OR a.creation_time >= $3)",
+    " AND ($4 == NULL OR a.creation_time <= $4)",
+    " AND ($5 == NULL OR a.creator_user_id = $5)",
+    " AND ($6 == NULL OR a.duration = $6)",
+    " AND ($7 == NULL OR a.duration >= $7)",
+    " AND ($8 == NULL OR a.duration <= $8)",
+    " AND ($9 == NULL OR a.api_key_kind = $9)",
     " ORDER BY a.api_key_id",
-    " LIMIT :offset, :count",
+    " LIMIT $10, $11",
   ]
   .join("");
 
-  let mut stmnt = con.prepare(&sql)?;
+  let stmnt = con.prepare(&sql)?;
 
-  let results = stmnt
-    .query(named_params! {
-        "api_key_id": props.api_key_id,
-        "creator_user_id": props.creator_user_id,
-        "creation_time": props.creation_time,
-        "min_creation_time": props.min_creation_time,
-        "max_creation_time": props.max_creation_time,
-        "duration": props.duration,
-        "min_duration": props.min_duration,
-        "max_duration": props.max_duration,
-        "api_key_kind": props.api_key_kind.map(|x| x as u8),
-        "offset": props.offset,
-        "count": props.offset,
-    })?
-    .and_then(|row| row.try_into())
-    .filter_map(|x: Result<ApiKey, rusqlite::Error>| x.ok());
-  Ok(results.collect::<Vec<ApiKey>>())
+  let results = con
+    .query(
+      &stmnt,
+      &[
+        &props.api_key_id,
+        &props.creator_user_id,
+        &props.creation_time,
+        &props.min_creation_time,
+        &props.max_creation_time,
+        &props.duration,
+        &props.min_duration,
+        &props.max_duration,
+        &props.api_key_kind.map(|x| x as i64),
+        &props.offset,
+        &props.count,
+      ],
+    )?
+    .into_iter()
+    .map(|x| x.into())
+    .collect();
+
+  Ok(results)
 }
