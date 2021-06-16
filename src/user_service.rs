@@ -24,13 +24,14 @@ pub fn add(
   let user_id = con
     .query_one(
       "INSERT INTO
-     user(
+       user_t(
         creation_time,
         name,
         email,
         verification_challenge_key_hash
-     )
-     VALUES($1, $2, $3, $4)",
+       )
+       VALUES($1, $2, $3, $4)
+      ",
       &[
         &creation_time,
         &v.name,
@@ -55,7 +56,7 @@ pub fn get_by_user_id(
   user_id: i64,
 ) -> Result<Option<User>, postgres::Error> {
   let result = con
-    .query_opt("SELECT * FROM user WHERE user_id=$1", &[&user_id])?
+    .query_opt("SELECT * FROM user_t WHERE user_id=$1", &[&user_id])?
     .map(|row| row.into());
 
   Ok(result)
@@ -66,7 +67,7 @@ pub fn get_by_user_email(
   user_email: &str,
 ) -> Result<Option<User>, postgres::Error> {
   let result = con
-    .query_opt("SELECT * FROM user WHERE email=$1", &[&user_email])?
+    .query_opt("SELECT * FROM user_t WHERE email=$1", &[&user_email])?
     .map(|row| row.into());
 
   Ok(result)
@@ -74,7 +75,7 @@ pub fn get_by_user_email(
 
 pub fn exists_by_email(con: &mut impl GenericClient, email: &str) -> Result<bool, postgres::Error> {
   let count: i64 = con
-    .query_one("SELECT count(*) FROM user WHERE email=$1", &[&email])?
+    .query_one("SELECT count(*) FROM user_t WHERE email=$1", &[&email])?
     .get(0);
   Ok(count != 0)
 }
@@ -85,7 +86,7 @@ pub fn exists_by_user_id(
   user_id: i64,
 ) -> Result<bool, postgres::Error> {
   let count: i64 = con
-    .query_one("SELECT count(*) FROM user WHERE user_id=$1", &[&user_id])?
+    .query_one("SELECT count(*) FROM user_t WHERE user_id=$1", &[&user_id])?
     .get(0);
   Ok(count != 0)
 }
@@ -96,7 +97,7 @@ pub fn exists_by_verification_challenge_key_hash(
 ) -> Result<bool, postgres::Error> {
   let count: i64 = con
     .query_one(
-      "SELECT count(*) FROM user WHERE verification_challenge_key_hash=$1",
+      "SELECT count(*) FROM user_t WHERE verification_challenge_key_hash=$1",
       &[&verification_challenge_key_hash],
     )?
     .get(0);
@@ -109,7 +110,7 @@ pub fn query(
 ) -> Result<Vec<User>, postgres::Error> {
   let results = con
     .query(
-      "SELECT u.* FROM user u WHERE 1 = 1
+      "SELECT u.* FROM user_t u WHERE 1 = 1
        AND ($1 == NULL OR u.user_id = $1)
        AND ($2 == NULL OR u.creation_time = $2)
        AND ($3 == NULL OR u.creation_time >= $3)

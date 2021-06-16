@@ -11,17 +11,17 @@ create table verification_challenge(
   creation_time integer not null,
   name varchar(100) not null,
   email varchar(100) not null,
-  password_hash char(64) not null
+  password_hash char(128) not null
 );
 
 
-drop table if exists user;
-create table user(
+drop table if exists user_t;
+create table user_t(
   user_id serial primary key,
   creation_time integer not null,
   name varchar(100) not null,
-  email varchar(100) not null unique,
-  verification_challenge_key_hash char(64) not null unique
+  email varchar(100) not null,
+  verification_challenge_key_hash varchar(100) not null
 );
 
 
@@ -38,7 +38,7 @@ create table password(
   creation_time integer not null,
   creator_user_id integer not null,
   password_kind integer not null, -- CHANGE | RESET | CANCEL
-  password_hash char(64) not null, -- only valid if RESET | CANCEL
+  password_hash char(128) not null, -- only valid if RESET | CANCEL
   password_reset_key_hash char(64) not null -- only valid if RESET
 );
 
