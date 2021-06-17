@@ -1,10 +1,10 @@
 use super::auth_db_types::*;
 use super::utils::current_time_millis;
-use postgres::GenericClient;
+use tokio_postgres::GenericClient;
 
-impl From<postgres::row::Row> for User {
+impl From<tokio_postgres::row::Row> for User {
   // select * from user order only, otherwise it will fail
-  fn from(row: postgres::row::Row) -> User {
+  fn from(row: tokio_postgres::row::Row) -> User {
     User {
       user_id: row.get("user_id"),
       creation_time: row.get("creation_time"),
@@ -18,7 +18,7 @@ impl From<postgres::row::Row> for User {
 pub fn add(
   con: &mut impl GenericClient,
   v: VerificationChallenge,
-) -> Result<User, postgres::Error> {
+) -> Result<User, tokio_postgres::Error> {
   let creation_time = current_time_millis();
 
   let user_id = con
@@ -54,7 +54,7 @@ pub fn add(
 pub fn get_by_user_id(
   con: &mut impl GenericClient,
   user_id: i64,
-) -> Result<Option<User>, postgres::Error> {
+) -> Result<Option<User>, tokio_postgres::Error> {
   let result = con
     .query_opt("SELECT * FROM user_t WHERE user_id=$1", &[&user_id])?
     .map(|row| row.into());
@@ -65,7 +65,7 @@ pub fn get_by_user_id(
 pub fn get_by_user_email(
   con: &mut impl GenericClient,
   user_email: &str,
-) -> Result<Option<User>, postgres::Error> {
+) -> Result<Option<User>, tokio_postgres::Error> {
   let result = con
     .query_opt("SELECT * FROM user_t WHERE email=$1", &[&user_email])?
     .map(|row| row.into());
@@ -73,7 +73,7 @@ pub fn get_by_user_email(
   Ok(result)
 }
 
-pub fn exists_by_email(con: &mut impl GenericClient, email: &str) -> Result<bool, postgres::Error> {
+pub fn exists_by_email(con: &mut impl GenericClient, email: &str) -> Result<bool, tokio_postgres::Error> {
   let count: i64 = con
     .query_one("SELECT count(*) FROM user_t WHERE email=$1", &[&email])?
     .get(0);
@@ -84,7 +84,7 @@ pub fn exists_by_email(con: &mut impl GenericClient, email: &str) -> Result<bool
 pub fn exists_by_user_id(
   con: &mut impl GenericClient,
   user_id: i64,
-) -> Result<bool, postgres::Error> {
+) -> Result<bool, tokio_postgres::Error> {
   let count: i64 = con
     .query_one("SELECT count(*) FROM user_t WHERE user_id=$1", &[&user_id])?
     .get(0);
@@ -94,7 +94,7 @@ pub fn exists_by_user_id(
 pub fn exists_by_verification_challenge_key_hash(
   con: &mut impl GenericClient,
   verification_challenge_key_hash: &str,
-) -> Result<bool, postgres::Error> {
+) -> Result<bool, tokio_postgres::Error> {
   let count: i64 = con
     .query_one(
       "SELECT count(*) FROM user_t WHERE verification_challenge_key_hash=$1",
@@ -107,7 +107,7 @@ pub fn exists_by_verification_challenge_key_hash(
 pub fn query(
   con: &mut impl GenericClient,
   props: auth_service_api::request::UserViewProps,
-) -> Result<Vec<User>, postgres::Error> {
+) -> Result<Vec<User>, tokio_postgres::Error> {
   let results = con
     .query(
       "SELECT u.* FROM user_t u WHERE 1 = 1

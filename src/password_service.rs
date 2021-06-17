@@ -1,11 +1,11 @@
 use super::auth_db_types::*;
 use super::utils::current_time_millis;
-use postgres::GenericClient;
+use tokio_postgres::GenericClient;
 use std::convert::TryInto;
 
-impl From<postgres::row::Row> for Password {
+impl From<tokio_postgres::row::Row> for Password {
   // select * from password order only, otherwise it will fail
-  fn from(row: postgres::row::Row) -> Password {
+  fn from(row: tokio_postgres::row::Row) -> Password {
     Password {
       password_id: row.get("password_id"),
       creation_time: row.get("creation_time"),
@@ -25,7 +25,7 @@ pub fn add(
   password_kind: auth_service_api::request::PasswordKind,
   password_hash: String,
   password_reset_key_hash: String,
-) -> Result<Password, postgres::Error> {
+) -> Result<Password, tokio_postgres::Error> {
   let creation_time = current_time_millis();
 
   let password_id = con
@@ -65,7 +65,7 @@ pub fn add(
 pub fn get_by_password_id(
   con: &mut impl GenericClient,
   password_id: i64,
-) -> Result<Option<Password>, postgres::Error> {
+) -> Result<Option<Password>, tokio_postgres::Error> {
   let result = con
     .query_opt(
       "SELECT * FROM password WHERE password_id=$1",
@@ -79,7 +79,7 @@ pub fn get_by_password_id(
 pub fn exists_by_password_reset_key_hash(
   con: &mut impl GenericClient,
   password_reset_key_hash: &str,
-) -> Result<bool, postgres::Error> {
+) -> Result<bool, tokio_postgres::Error> {
   let count: i64 = con
     .query_one(
       "SELECT count(*) FROM password WHERE password_reset_key_hash=$1",
@@ -92,7 +92,7 @@ pub fn exists_by_password_reset_key_hash(
 pub fn query(
   con: &mut impl GenericClient,
   props: auth_service_api::request::PasswordViewProps,
-) -> Result<Vec<Password>, postgres::Error> {
+) -> Result<Vec<Password>, tokio_postgres::Error> {
   let sql = [
 
     "SELECT p.* FROM password p",

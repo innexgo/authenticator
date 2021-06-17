@@ -1,6 +1,6 @@
 #![feature(async_closure)]
 use clap::Clap;
-use postgres::{Client, NoTls};
+use tokio_postgres::{Client, NoTls};
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

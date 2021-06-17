@@ -27,7 +27,7 @@ fn report_internal_err<E: std::error::Error>(e: E) -> response::AuthError {
   response::AuthError::Unknown
 }
 
-fn report_postgres_err(e: postgres::Error) -> response::AuthError {
+fn report_postgres_err(e: tokio_postgres::Error) -> response::AuthError {
   utils::log(utils::Event {
     msg: e.to_string(),
     source: e.source().map(|e| e.to_string()),
@@ -53,7 +53,7 @@ fn report_mail_err(e: MailError) -> response::AuthError {
 }
 
 fn fill_user(
-  _con: &mut postgres::Client,
+  _con: &mut tokio_postgres::Client,
   user: User,
 ) -> Result<response::User, response::AuthError> {
   Ok(response::User {
@@ -65,7 +65,7 @@ fn fill_user(
 }
 
 fn fill_api_key(
-  con: &mut postgres::Client,
+  con: &mut tokio_postgres::Client,
   api_key: ApiKey,
   key: Option<String>,
 ) -> Result<response::ApiKey, response::AuthError> {
@@ -88,7 +88,7 @@ fn fill_api_key(
 }
 
 fn fill_password(
-  con: &mut postgres::Client,
+  con: &mut tokio_postgres::Client,
   password: Password,
 ) -> Result<response::Password, response::AuthError> {
   let creator = user_service::get_by_user_id(con, password.creator_user_id)
@@ -104,7 +104,7 @@ fn fill_password(
 }
 
 fn fill_password_reset(
-  _con: &postgres::Client,
+  _con: &tokio_postgres::Client,
   password_reset: PasswordReset,
 ) -> Result<response::PasswordReset, response::AuthError> {
   Ok(response::PasswordReset {
@@ -113,7 +113,7 @@ fn fill_password_reset(
 }
 
 fn fill_verification_challenge(
-  _con: &postgres::Client,
+  _con: &tokio_postgres::Client,
   verification_challenge: VerificationChallenge,
 ) -> Result<response::VerificationChallenge, response::AuthError> {
   Ok(response::VerificationChallenge {
@@ -124,7 +124,7 @@ fn fill_verification_challenge(
 }
 
 pub fn get_api_key_if_valid(
-  con: &mut postgres::Client,
+  con: &mut tokio_postgres::Client,
   api_key: &str,
 ) -> Result<ApiKey, response::AuthError> {
   let creator_api_key = api_key_service::get_by_api_key_hash(con, &utils::hash_str(api_key))

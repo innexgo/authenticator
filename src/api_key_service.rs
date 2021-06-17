@@ -1,11 +1,11 @@
 use super::auth_db_types::*;
 use super::utils::current_time_millis;
-use postgres::GenericClient;
+use tokio_postgres::GenericClient;
 use std::convert::TryInto;
 
-impl From<postgres::row::Row> for ApiKey {
+impl From<tokio_postgres::row::Row> for ApiKey {
   // select * from api_key order only, otherwise it will fail
-  fn from(row: postgres::row::Row) -> ApiKey {
+  fn from(row: tokio_postgres::row::Row) -> ApiKey {
     ApiKey {
       api_key_id: row.get("api_key_id"),
       creation_time: row.get("creation_time"),
@@ -26,7 +26,7 @@ pub fn add(
   api_key_hash: String,
   api_key_kind: auth_service_api::request::ApiKeyKind,
   duration: i64,
-) -> Result<ApiKey, postgres::Error> {
+) -> Result<ApiKey, tokio_postgres::Error> {
   let creation_time = current_time_millis();
 
   let api_key_id = con
@@ -66,7 +66,7 @@ pub fn add(
 pub fn get_by_api_key_hash(
   con: &mut impl GenericClient,
   api_key_hash: &str,
-) -> Result<Option<ApiKey>, postgres::Error> {
+) -> Result<Option<ApiKey>, tokio_postgres::Error> {
   let result = con
     .query_opt(
       "SELECT * FROM api_key WHERE api_key_hash=$1",
@@ -80,7 +80,7 @@ pub fn get_by_api_key_hash(
 pub fn query(
   con: &mut impl GenericClient,
   props: auth_service_api::request::ApiKeyViewProps,
-) -> Result<Vec<ApiKey>, postgres::Error> {
+) -> Result<Vec<ApiKey>, tokio_postgres::Error> {
   // TODO prevent getting meaningless duration
 
   let sql = [

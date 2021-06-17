@@ -44,7 +44,6 @@ dependencies = [
  "base64",
  "clap",
  "mail-service-api",
- "postgres",
  "rand 0.8.3",
  "reqwest",
  "rust-argon2",
@@ -52,6 +51,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tokio",
+ "tokio-postgres",
  "warp",
 ]
 
@@ -911,20 +911,6 @@ name = "pkg-config"
 version = "0.3.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3831453b3449ceb48b6d9c7ad7c96d5ea673e9b470a1dc578c2ce6521230884c"
-
-[[package]]
-name = "postgres"
-version = "0.19.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c7871ee579860d8183f542e387b176a25f2656b9fb5211e045397f745a68d1c2"
-dependencies = [
- "bytes",
- "fallible-iterator",
- "futures",
- "log",
- "tokio",
- "tokio-postgres",
-]
 
 [[package]]
 name = "postgres-protocol"

@@ -1,10 +1,10 @@
 use super::auth_db_types::VerificationChallenge;
 use super::utils::current_time_millis;
-use postgres::GenericClient;
+use tokio_postgres::GenericClient;
 
-impl From<postgres::row::Row> for VerificationChallenge {
+impl From<tokio_postgres::row::Row> for VerificationChallenge {
   // select * from user order only, otherwise it will fail
-  fn from(row: postgres::row::Row) -> VerificationChallenge {
+  fn from(row: tokio_postgres::row::Row) -> VerificationChallenge {
     VerificationChallenge {
       verification_challenge_key_hash: row.get("verification_challenge_key_hash"),
       creation_time: row.get("creation_time"),
@@ -21,7 +21,7 @@ pub fn add(
   name: String,
   email: String,
   password_hash: String,
-) -> Result<VerificationChallenge, postgres::Error> {
+) -> Result<VerificationChallenge, tokio_postgres::Error> {
   let creation_time = current_time_millis();
 
   con.execute(
@@ -55,7 +55,7 @@ pub fn add(
 pub fn get_by_verification_challenge_key_hash(
   con: &mut impl GenericClient,
   verification_challenge_key_hash: &str,
-) -> Result<Option<VerificationChallenge>, postgres::Error> {
+) -> Result<Option<VerificationChallenge>, tokio_postgres::Error> {
   let result = con
     .query_opt(
       "SELECT * FROM verification_challenge WHERE verification_challenge_key_hash=$1",
@@ -69,7 +69,7 @@ pub fn get_by_verification_challenge_key_hash(
 pub fn get_last_email_sent_time(
   con: &mut impl GenericClient,
   email: &str,
-) -> Result<Option<i64>, postgres::Error> {
+) -> Result<Option<i64>, tokio_postgres::Error> {
   let time = con
     .query_one(
       "SELECT MAX(creation_time) FROM verification_challenge WHERE email=$1",

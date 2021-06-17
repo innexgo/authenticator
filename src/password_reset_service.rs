@@ -1,12 +1,12 @@
 use super::auth_db_types::PasswordReset;
 use super::utils::current_time_millis;
-use postgres::GenericClient;
+use tokio_postgres::GenericClient;
 
 pub fn add(
   con: &mut impl GenericClient,
   password_reset_key_hash: String,
   creator_user_id: i64,
-) -> Result<PasswordReset, postgres::Error> {
+) -> Result<PasswordReset, tokio_postgres::Error> {
   let creation_time = current_time_millis();
   con.execute(
     "INSERT INTO password_reset values ($1, $2, $3)",
@@ -23,7 +23,7 @@ pub fn add(
 pub fn get_by_password_reset_key_hash(
   con: &mut impl GenericClient,
   password_reset_key_hash: &str,
-) -> Result<Option<PasswordReset>, postgres::Error> {
+) -> Result<Option<PasswordReset>, tokio_postgres::Error> {
   let result = con
     .query_opt(
       "SELECT * FROM password_reset WHERE password_reset_key_hash=$1",
