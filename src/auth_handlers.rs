@@ -549,16 +549,15 @@ pub async fn user_view(
   // api key verification required
   let _ = get_api_key_if_valid(con, &props.api_key).await?;
   // get users
-  let mut users = user_service::query(con, props)
+  let users = user_service::query(con, props)
     .await
-    .map_err(report_postgres_err)?
-    .into_iter();
+    .map_err(report_postgres_err)?;
 
-  // return users
   let mut resp_users = vec![];
-  while let Some(u) = users.next() {
+  for u in users.into_iter() {
     resp_users.push(fill_user(con, u).await?);
   }
+
   Ok(resp_users)
 }
 
@@ -572,16 +571,16 @@ pub async fn password_view(
   // api key verification required
   let _ = get_api_key_if_valid(con, &props.api_key).await?;
   // get passwords
-  let mut passwords = password_service::query(con, props)
+  let passwords = password_service::query(con, props)
     .await
-    .map_err(report_postgres_err)?
-    .into_iter();
+    .map_err(report_postgres_err)?;
 
   // return passwords
   let mut resp_passwords = vec![];
-  while let Some(u) = passwords.next() {
+  for u in passwords.into_iter() {
     resp_passwords.push(fill_password(con, u).await?);
   }
+
   Ok(resp_passwords)
 }
 
@@ -595,15 +594,16 @@ pub async fn api_key_view(
   // api key verification required
   let _ = get_api_key_if_valid(con, &props.api_key).await?;
   // get users
-  let mut api_keys = api_key_service::query(con, props)
+  let api_keys = api_key_service::query(con, props)
     .await
-    .map_err(report_postgres_err)?
-    .into_iter();
+    .map_err(report_postgres_err)?;
+
   // return
   let mut resp_api_keys = vec![];
-  while let Some(u) = api_keys.next() {
+  for u in api_keys.into_iter() {
     resp_api_keys.push(fill_api_key(con, u, None).await?);
   }
+
   Ok(resp_api_keys)
 }
 

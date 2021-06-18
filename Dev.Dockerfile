@@ -1,12 +1,35 @@
 # We use glibc rust for dev purposes
 # to set the environment to build our binary
-FROM rust:1.50
 
-# for dev version, build quickly
-# the docker-compose should include the cache directories so that
-# building is fast
+# see these resources for an explanation:
+# https://www.lpalmieri.com/posts/fast-rust-docker-builds/
+# https://github.com/LukeMathWalker/cargo-chef
+
+FROM rustlang/rust:nightly as planner
+WORKDIR app
+# We only pay the installation cost once, 
+# it will be cached from the second build onwards
+# To ensure a reproducible build consider pinning 
+# the cargo-chef version with `--version X.X.X`
+RUN cargo install cargo-chef 
+COPY . .
+RUN cargo chef prepare  --recipe-path recipe.json
+
+FROM rustlang/rust:nightly as cacher
+WORKDIR app
+RUN cargo install cargo-chef
+COPY --from=planner /app/recipe.json recipe.json
+RUN cargo chef cook --recipe-path recipe.json
+
+FROM rustlang/rust:nightly as builder
+WORKDIR app
+COPY . .
+# Copy over the cached dependencies
+COPY --from=cacher /app/target target
+COPY --from=cacher /usr/local/cargo /usr/local/cargo
 RUN cargo build
 
-COPY target/debug/auth-service "/bin/auth-service"
-
+FROM rustlang/rust:nightly as runtime
+WORKDIR app
+COPY --from=builder /app/target/debug/auth-service /bin/auth-service
 CMD ["/bin/auth-service"]
