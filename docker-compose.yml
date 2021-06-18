@@ -1,0 +1,28 @@
+version: "3.9"
+   
+services:
+  db:
+    image: postgres
+    volumes:
+      - ./data/db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=toor
+  mail-service:
+    build:
+      dockerfile: Dev.Dockerfile
+      context: .
+    command: 
+      [
+        "/bin/mail-service",
+        "--port=8080",
+        "--database-url=postgres://db?dbname=mail&user=postgres&password=toor"
+      ]
+    volumes:
+      - .:/code
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+

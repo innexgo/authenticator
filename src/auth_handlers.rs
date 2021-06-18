@@ -52,7 +52,7 @@ fn report_mail_err(e: MailError) -> response::AuthError {
   ae
 }
 
-fn fill_user(
+async fn fill_user(
   _con: &mut tokio_postgres::Client,
   user: User,
 ) -> Result<response::User, response::AuthError> {
@@ -64,19 +64,20 @@ fn fill_user(
   })
 }
 
-fn fill_api_key(
+async fn fill_api_key(
   con: &mut tokio_postgres::Client,
   api_key: ApiKey,
   key: Option<String>,
 ) -> Result<response::ApiKey, response::AuthError> {
   let creator = user_service::get_by_user_id(con, api_key.creator_user_id)
+    .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
   Ok(response::ApiKey {
     api_key_id: api_key.api_key_id,
     creation_time: api_key.creation_time,
-    creator: fill_user(con, creator)?,
+    creator: fill_user(con, creator).await?,
     api_key_data: match api_key.api_key_kind {
       request::ApiKeyKind::Valid => response::ApiKeyData::Valid {
         duration: api_key.duration,
@@ -87,23 +88,24 @@ fn fill_api_key(
   })
 }
 
-fn fill_password(
+async fn fill_password(
   con: &mut tokio_postgres::Client,
   password: Password,
 ) -> Result<response::Password, response::AuthError> {
   let creator = user_service::get_by_user_id(con, password.creator_user_id)
+    .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
   Ok(response::Password {
     password_id: password.password_id,
     creation_time: password.creation_time,
-    creator: fill_user(con, creator)?,
+    creator: fill_user(con, creator).await?,
     password_kind: password.password_kind,
   })
 }
 
-fn fill_password_reset(
+async fn fill_password_reset(
   _con: &tokio_postgres::Client,
   password_reset: PasswordReset,
 ) -> Result<response::PasswordReset, response::AuthError> {
@@ -112,7 +114,7 @@ fn fill_password_reset(
   })
 }
 
-fn fill_verification_challenge(
+async fn fill_verification_challenge(
   _con: &tokio_postgres::Client,
   verification_challenge: VerificationChallenge,
 ) -> Result<response::VerificationChallenge, response::AuthError> {
@@ -123,11 +125,12 @@ fn fill_verification_challenge(
   })
 }
 
-pub fn get_api_key_if_valid(
+pub async fn get_api_key_if_valid(
   con: &mut tokio_postgres::Client,
   api_key: &str,
 ) -> Result<ApiKey, response::AuthError> {
   let creator_api_key = api_key_service::get_by_api_key_hash(con, &utils::hash_str(api_key))
+    .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::ApiKeyNonexistent)?;
 
@@ -147,10 +150,12 @@ pub async fn api_key_new_valid(
   let con = &mut *db.lock().await;
 
   let user = user_service::get_by_user_email(con, &props.user_email)
+    .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
   let password = password_service::get_by_password_id(con, user.user_id)
+    .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::PasswordNonexistent)?;
 
@@ -163,7 +168,7 @@ pub async fn api_key_new_valid(
 
   let raw_api_key = utils::gen_random_string();
 
-  let mut sp = con.transaction().map_err(report_postgres_err)?;
+  let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
   // add new api key
   let api_key = api_key_service::add(
@@ -173,11 +178,12 @@ pub async fn api_key_new_valid(
     request::ApiKeyKind::Valid,
     props.duration,
   )
+  .await
   .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_postgres_err)?;
+  sp.commit().await.map_err(report_postgres_err)?;
 
-  fill_api_key(con, api_key, Some(raw_api_key))
+  fill_api_key(con, api_key, Some(raw_api_key)).await
 }
 
 pub async fn api_key_new_cancel(
@@ -189,15 +195,15 @@ pub async fn api_key_new_cancel(
   let con = &mut *db.lock().await;
 
   // validate api key
-  let creator_key = get_api_key_if_valid(con, &props.api_key)?;
+  let creator_key = get_api_key_if_valid(con, &props.api_key).await?;
 
-  let to_cancel_key = get_api_key_if_valid(con, &props.api_key_to_cancel)?;
+  let to_cancel_key = get_api_key_if_valid(con, &props.api_key_to_cancel).await?;
 
   if creator_key.creator_user_id != to_cancel_key.creator_user_id {
     return Err(response::AuthError::ApiKeyUnauthorized);
   }
 
-  let mut sp = con.transaction().map_err(report_postgres_err)?;
+  let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
   // cancel keys
   let key_cancel = api_key_service::add(
@@ -207,12 +213,13 @@ pub async fn api_key_new_cancel(
     request::ApiKeyKind::Cancel,
     0,
   )
+  .await
   .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_postgres_err)?;
+  sp.commit().await.map_err(report_postgres_err)?;
 
   // return json
-  fill_api_key(con, key_cancel, None)
+  fill_api_key(con, key_cancel, None).await
 }
 
 pub async fn verification_challenge_new(
@@ -239,12 +246,16 @@ pub async fn verification_challenge_new(
   let con = &mut *db.lock().await;
 
   // if user name is taken
-  if user_service::exists_by_email(con, &props.user_email).map_err(report_postgres_err)? {
+  if user_service::exists_by_email(con, &props.user_email)
+    .await
+    .map_err(report_postgres_err)?
+  {
     return Err(response::AuthError::UserExistent);
   }
 
   let last_email_sent_time =
     verification_challenge_service::get_last_email_sent_time(con, &props.user_email)
+      .await
       .map_err(report_postgres_err)?;
 
   if let Some(time) = last_email_sent_time {
@@ -289,10 +300,11 @@ pub async fn verification_challenge_new(
     props.user_email,
     utils::hash_password(&props.user_password).map_err(report_internal_err)?,
   )
+  .await
   .map_err(report_postgres_err)?;
 
   // return json
-  fill_verification_challenge(con, verification_challenge)
+  fill_verification_challenge(con, verification_challenge).await
 }
 pub async fn user_new(
   _config: Config,
@@ -306,14 +318,18 @@ pub async fn user_new(
 
   // check that the verification challenge exists
   let vc = verification_challenge_service::get_by_verification_challenge_key_hash(con, vckh)
+    .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::VerificationChallengeNonexistent)?;
 
   // check if the verification challenge was not already used
   // and that the email isn't already in use by another user
   if user_service::exists_by_verification_challenge_key_hash(con, vckh)
+    .await
     .map_err(report_postgres_err)?
-    || user_service::exists_by_email(con, &vc.email).map_err(report_postgres_err)?
+    || user_service::exists_by_email(con, &vc.email)
+      .await
+      .map_err(report_postgres_err)?
   {
     return Err(response::AuthError::UserExistent);
   }
@@ -326,10 +342,12 @@ pub async fn user_new(
 
   let vc_password_hash = vc.password_hash.clone();
 
-  let mut sp = con.transaction().map_err(report_postgres_err)?;
+  let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
   // create user
-  let user = user_service::add(&mut sp, vc).map_err(report_postgres_err)?;
+  let user = user_service::add(&mut sp, vc)
+    .await
+    .map_err(report_postgres_err)?;
 
   // create password
   password_service::add(
@@ -339,12 +357,13 @@ pub async fn user_new(
     vc_password_hash,
     String::new(),
   )
+  .await
   .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_postgres_err)?;
+  sp.commit().await.map_err(report_postgres_err)?;
 
   // return filled struct
-  fill_user(con, user)
+  fill_user(con, user).await
 }
 pub async fn password_reset_new(
   config: Config,
@@ -355,6 +374,7 @@ pub async fn password_reset_new(
   let con = &mut *db.lock().await;
 
   let user = user_service::get_by_user_email(con, &props.user_email)
+    .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
@@ -382,16 +402,17 @@ pub async fn password_reset_new(
     .await
     .map_err(report_mail_err)?;
 
-  let mut sp = con.transaction().map_err(report_postgres_err)?;
+  let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
   let password_reset =
     password_reset_service::add(&mut sp, utils::hash_str(&raw_key), user.user_id)
+      .await
       .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_postgres_err)?;
+  sp.commit().await.map_err(report_postgres_err)?;
 
   // fill struct
-  fill_password_reset(con, password_reset)
+  fill_password_reset(con, password_reset).await
 }
 
 pub async fn password_new_reset(
@@ -409,11 +430,13 @@ pub async fn password_new_reset(
     con,
     &utils::hash_str(&props.password_reset_key),
   )
+  .await
   .map_err(report_postgres_err)?
   .ok_or(response::AuthError::PasswordResetNonexistent)?;
 
   // deny if we alread created a password from this reset
   if password_service::exists_by_password_reset_key_hash(con, &psr.password_reset_key_hash)
+    .await
     .map_err(report_postgres_err)?
   {
     return Err(response::AuthError::PasswordExistent);
@@ -432,7 +455,7 @@ pub async fn password_new_reset(
   // attempt to hash password
   let new_password_hash = utils::hash_password(&props.new_password).map_err(report_internal_err)?;
 
-  let mut sp = con.transaction().map_err(report_postgres_err)?;
+  let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
   // create password
   let password = password_service::add(
@@ -442,11 +465,12 @@ pub async fn password_new_reset(
     new_password_hash,
     psr.password_reset_key_hash,
   )
+  .await
   .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_postgres_err)?;
+  sp.commit().await.map_err(report_postgres_err)?;
 
-  fill_password(con, password)
+  fill_password(con, password).await
 }
 
 pub async fn password_new_change(
@@ -458,7 +482,7 @@ pub async fn password_new_change(
   let con = &mut *db.lock().await;
 
   // api key verification required
-  let creator_key = get_api_key_if_valid(con, &props.api_key)?;
+  let creator_key = get_api_key_if_valid(con, &props.api_key).await?;
 
   // reject insecure passwords
   if !utils::is_secure_password(&props.new_password) {
@@ -468,7 +492,7 @@ pub async fn password_new_change(
   // attempt to hash password
   let new_password_hash = utils::hash_password(&props.new_password).map_err(report_internal_err)?;
 
-  let mut sp = con.transaction().map_err(report_postgres_err)?;
+  let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
   // create password
   let password = password_service::add(
@@ -478,12 +502,13 @@ pub async fn password_new_change(
     new_password_hash,
     String::new(),
   )
+  .await
   .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_postgres_err)?;
+  sp.commit().await.map_err(report_postgres_err)?;
 
   // return filled struct
-  fill_password(con, password)
+  fill_password(con, password).await
 }
 pub async fn password_new_cancel(
   _config: Config,
@@ -494,9 +519,9 @@ pub async fn password_new_cancel(
   let con = &mut *db.lock().await;
 
   // api key verification required
-  let creator_key = get_api_key_if_valid(con, &props.api_key)?;
+  let creator_key = get_api_key_if_valid(con, &props.api_key).await?;
 
-  let mut sp = con.transaction().map_err(report_postgres_err)?;
+  let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
   // create password
   let password = password_service::add(
@@ -506,11 +531,12 @@ pub async fn password_new_cancel(
     String::new(),
     String::new(),
   )
+  .await
   .map_err(report_postgres_err)?;
 
-  sp.commit().map_err(report_postgres_err)?;
+  sp.commit().await.map_err(report_postgres_err)?;
 
-  fill_password(con, password)
+  fill_password(con, password).await
 }
 
 pub async fn user_view(
@@ -521,11 +547,19 @@ pub async fn user_view(
 ) -> Result<Vec<response::User>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, &props.api_key)?;
+  let _ = get_api_key_if_valid(con, &props.api_key).await?;
   // get users
-  let users = user_service::query(con, props).map_err(report_postgres_err)?;
+  let mut users = user_service::query(con, props)
+    .await
+    .map_err(report_postgres_err)?
+    .into_iter();
+
   // return users
-  users.into_iter().map(|u| fill_user(con, u)).collect()
+  let mut resp_users = vec![];
+  while let Some(u) = users.next() {
+    resp_users.push(fill_user(con, u).await?);
+  }
+  Ok(resp_users)
 }
 
 pub async fn password_view(
@@ -536,14 +570,19 @@ pub async fn password_view(
 ) -> Result<Vec<response::Password>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, &props.api_key)?;
+  let _ = get_api_key_if_valid(con, &props.api_key).await?;
   // get passwords
-  let passwords = password_service::query(con, props).map_err(report_postgres_err)?;
+  let mut passwords = password_service::query(con, props)
+    .await
+    .map_err(report_postgres_err)?
+    .into_iter();
+
   // return passwords
-  passwords
-    .into_iter()
-    .map(|p| fill_password(con, p))
-    .collect()
+  let mut resp_passwords = vec![];
+  while let Some(u) = passwords.next() {
+    resp_passwords.push(fill_password(con, u).await?);
+  }
+  Ok(resp_passwords)
 }
 
 pub async fn api_key_view(
@@ -554,14 +593,18 @@ pub async fn api_key_view(
 ) -> Result<Vec<response::ApiKey>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, &props.api_key)?;
+  let _ = get_api_key_if_valid(con, &props.api_key).await?;
   // get users
-  let api_keys = api_key_service::query(con, props).map_err(report_postgres_err)?;
+  let mut api_keys = api_key_service::query(con, props)
+    .await
+    .map_err(report_postgres_err)?
+    .into_iter();
   // return
-  api_keys
-    .into_iter()
-    .map(|a| fill_api_key(con, a, None))
-    .collect()
+  let mut resp_api_keys = vec![];
+  while let Some(u) = api_keys.next() {
+    resp_api_keys.push(fill_api_key(con, u, None).await?);
+  }
+  Ok(resp_api_keys)
 }
 
 // special internal api
@@ -574,10 +617,11 @@ pub async fn get_user_by_id(
   let con = &mut *db.lock().await;
 
   let user = user_service::get_by_user_id(con, props.user_id)
+    .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
-  fill_user(con, user)
+  fill_user(con, user).await
 }
 
 pub async fn get_user_by_api_key_if_valid(
@@ -588,11 +632,12 @@ pub async fn get_user_by_api_key_if_valid(
 ) -> Result<response::User, response::AuthError> {
   let con = &mut *db.lock().await;
 
-  let api_key = get_api_key_if_valid(con, &props.api_key)?;
+  let api_key = get_api_key_if_valid(con, &props.api_key).await?;
 
   let user = user_service::get_by_user_id(con, api_key.creator_user_id)
+    .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
-  fill_user(con, user)
+  fill_user(con, user).await
 }

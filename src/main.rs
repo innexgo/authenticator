@@ -41,7 +41,7 @@ pub struct Config {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), tokio_postgres::Error> {
   let Opts {
     port,
     database_url,
@@ -49,8 +49,17 @@ async fn main() {
     site_external_url,
   } = Opts::parse();
 
-  // open connection to db
-  let db: Db = Arc::new(Mutex::new(Client::connect(&database_url, NoTls).unwrap()));
+  let (client, connection) = tokio_postgres::connect(&database_url, NoTls).await?;
+
+  // The connection object performs the actual communication with the database,
+  // so spawn it off to run on its own.
+  tokio::spawn(async move {
+    if let Err(e) = connection.await {
+      eprintln!("connection error: {}", e);
+    }
+  });
+
+  let db: Db = Arc::new(Mutex::new(client));
 
   // open connection to mail service
   let mail_service = MailService::new(&mail_service_url).await;
@@ -58,4 +67,6 @@ async fn main() {
   let api = auth_api::api(Config { site_external_url }, db, mail_service);
 
   warp::serve(api).run(([127, 0, 0, 1], port)).await;
+
+  Ok(())
 }

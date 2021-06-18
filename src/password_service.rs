@@ -19,7 +19,7 @@ impl From<tokio_postgres::row::Row> for Password {
   }
 }
 
-pub fn add(
+pub async fn add(
   con: &mut impl GenericClient,
   creator_user_id: i64,
   password_kind: auth_service_api::request::PasswordKind,
@@ -48,7 +48,7 @@ pub fn add(
         &password_hash,
         &password_reset_key_hash,
       ],
-    )?
+    ).await?
     .get(0);
 
   // return password
@@ -62,7 +62,7 @@ pub fn add(
   })
 }
 
-pub fn get_by_password_id(
+pub async fn get_by_password_id(
   con: &mut impl GenericClient,
   password_id: i64,
 ) -> Result<Option<Password>, tokio_postgres::Error> {
@@ -70,13 +70,13 @@ pub fn get_by_password_id(
     .query_opt(
       "SELECT * FROM password WHERE password_id=$1",
       &[&password_id],
-    )?
+    ).await?
     .map(|x| x.into());
 
   Ok(result)
 }
 
-pub fn exists_by_password_reset_key_hash(
+pub async fn exists_by_password_reset_key_hash(
   con: &mut impl GenericClient,
   password_reset_key_hash: &str,
 ) -> Result<bool, tokio_postgres::Error> {
@@ -84,12 +84,12 @@ pub fn exists_by_password_reset_key_hash(
     .query_one(
       "SELECT count(*) FROM password WHERE password_reset_key_hash=$1",
       &[&password_reset_key_hash],
-    )?
+    ).await?
     .get(0);
   Ok(count != 0)
 }
 
-pub fn query(
+pub async fn query(
   con: &mut impl GenericClient,
   props: auth_service_api::request::PasswordViewProps,
 ) -> Result<Vec<Password>, tokio_postgres::Error> {
@@ -112,7 +112,7 @@ pub fn query(
   ]
   .join("");
 
-  let stmnt = con.prepare(&sql)?;
+  let stmnt = con.prepare(&sql).await?;
 
   let results = con
     .query(
@@ -127,7 +127,7 @@ pub fn query(
         &props.offset,
         &props.count,
       ],
-    )?
+    ).await?
     .into_iter()
     .map(|x| x.into())
     .collect();

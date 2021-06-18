@@ -20,7 +20,7 @@ impl From<tokio_postgres::row::Row> for ApiKey {
   }
 }
 
-pub fn add(
+pub async fn add(
   con: &mut impl GenericClient,
   creator_user_id: i64,
   api_key_hash: String,
@@ -49,7 +49,7 @@ pub fn add(
         &(api_key_kind.clone() as i64),
         &duration,
       ],
-    )?
+    ).await?
     .get(0);
 
   // return api_key
@@ -63,7 +63,7 @@ pub fn add(
   })
 }
 
-pub fn get_by_api_key_hash(
+pub async fn get_by_api_key_hash(
   con: &mut impl GenericClient,
   api_key_hash: &str,
 ) -> Result<Option<ApiKey>, tokio_postgres::Error> {
@@ -71,13 +71,13 @@ pub fn get_by_api_key_hash(
     .query_opt(
       "SELECT * FROM api_key WHERE api_key_hash=$1",
       &[&api_key_hash],
-    )?
+    ).await?
     .map(|x| x.into());
 
   Ok(result)
 }
 
-pub fn query(
+pub async fn query(
   con: &mut impl GenericClient,
   props: auth_service_api::request::ApiKeyViewProps,
 ) -> Result<Vec<ApiKey>, tokio_postgres::Error> {
@@ -105,7 +105,7 @@ pub fn query(
   ]
   .join("");
 
-  let stmnt = con.prepare(&sql)?;
+  let stmnt = con.prepare(&sql).await?;
 
   let results = con
     .query(
@@ -123,7 +123,7 @@ pub fn query(
         &props.offset,
         &props.count,
       ],
-    )?
+    ).await?
     .into_iter()
     .map(|x| x.into())
     .collect();

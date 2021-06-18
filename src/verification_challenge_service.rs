@@ -15,7 +15,7 @@ impl From<tokio_postgres::row::Row> for VerificationChallenge {
   }
 }
 
-pub fn add(
+pub async fn add(
   con: &mut impl GenericClient,
   verification_challenge_key_hash: String,
   name: String,
@@ -41,7 +41,7 @@ pub fn add(
       &email,
       &password_hash,
     ],
-  )?;
+  ).await?;
 
   Ok(VerificationChallenge {
     verification_challenge_key_hash,
@@ -52,7 +52,7 @@ pub fn add(
   })
 }
 
-pub fn get_by_verification_challenge_key_hash(
+pub async fn get_by_verification_challenge_key_hash(
   con: &mut impl GenericClient,
   verification_challenge_key_hash: &str,
 ) -> Result<Option<VerificationChallenge>, tokio_postgres::Error> {
@@ -60,13 +60,13 @@ pub fn get_by_verification_challenge_key_hash(
     .query_opt(
       "SELECT * FROM verification_challenge WHERE verification_challenge_key_hash=$1",
       &[&verification_challenge_key_hash],
-    )?
+    ).await?
     .map(|row| row.into());
 
   Ok(result)
 }
 
-pub fn get_last_email_sent_time(
+pub async fn get_last_email_sent_time(
   con: &mut impl GenericClient,
   email: &str,
 ) -> Result<Option<i64>, tokio_postgres::Error> {
@@ -74,7 +74,7 @@ pub fn get_last_email_sent_time(
     .query_one(
       "SELECT MAX(creation_time) FROM verification_challenge WHERE email=$1",
       &[&email],
-    )?
+    ).await?
     .get(0);
 
   Ok(time)

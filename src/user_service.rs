@@ -15,7 +15,7 @@ impl From<tokio_postgres::row::Row> for User {
   }
 }
 
-pub fn add(
+pub async fn add(
   con: &mut impl GenericClient,
   v: VerificationChallenge,
 ) -> Result<User, tokio_postgres::Error> {
@@ -38,7 +38,7 @@ pub fn add(
         &v.email,
         &v.verification_challenge_key_hash,
       ],
-    )?
+    ).await?
     .get(0);
 
   // return user
@@ -51,47 +51,47 @@ pub fn add(
   })
 }
 
-pub fn get_by_user_id(
+pub async fn get_by_user_id(
   con: &mut impl GenericClient,
   user_id: i64,
 ) -> Result<Option<User>, tokio_postgres::Error> {
   let result = con
-    .query_opt("SELECT * FROM user_t WHERE user_id=$1", &[&user_id])?
+    .query_opt("SELECT * FROM user_t WHERE user_id=$1", &[&user_id]).await?
     .map(|row| row.into());
 
   Ok(result)
 }
 
-pub fn get_by_user_email(
+pub async fn get_by_user_email(
   con: &mut impl GenericClient,
   user_email: &str,
 ) -> Result<Option<User>, tokio_postgres::Error> {
   let result = con
-    .query_opt("SELECT * FROM user_t WHERE email=$1", &[&user_email])?
+    .query_opt("SELECT * FROM user_t WHERE email=$1", &[&user_email]).await?
     .map(|row| row.into());
 
   Ok(result)
 }
 
-pub fn exists_by_email(con: &mut impl GenericClient, email: &str) -> Result<bool, tokio_postgres::Error> {
+pub async fn exists_by_email(con: &mut impl GenericClient, email: &str) -> Result<bool, tokio_postgres::Error> {
   let count: i64 = con
-    .query_one("SELECT count(*) FROM user_t WHERE email=$1", &[&email])?
+    .query_one("SELECT count(*) FROM user_t WHERE email=$1", &[&email]).await?
     .get(0);
   Ok(count != 0)
 }
 
 #[allow(unused)]
-pub fn exists_by_user_id(
+pub async fn exists_by_user_id(
   con: &mut impl GenericClient,
   user_id: i64,
 ) -> Result<bool, tokio_postgres::Error> {
   let count: i64 = con
-    .query_one("SELECT count(*) FROM user_t WHERE user_id=$1", &[&user_id])?
+    .query_one("SELECT count(*) FROM user_t WHERE user_id=$1", &[&user_id]).await?
     .get(0);
   Ok(count != 0)
 }
 
-pub fn exists_by_verification_challenge_key_hash(
+pub async fn exists_by_verification_challenge_key_hash(
   con: &mut impl GenericClient,
   verification_challenge_key_hash: &str,
 ) -> Result<bool, tokio_postgres::Error> {
@@ -99,12 +99,12 @@ pub fn exists_by_verification_challenge_key_hash(
     .query_one(
       "SELECT count(*) FROM user_t WHERE verification_challenge_key_hash=$1",
       &[&verification_challenge_key_hash],
-    )?
+    ).await?
     .get(0);
   Ok(count != 0)
 }
 
-pub fn query(
+pub async fn query(
   con: &mut impl GenericClient,
   props: auth_service_api::request::UserViewProps,
 ) -> Result<Vec<User>, tokio_postgres::Error> {
@@ -130,7 +130,7 @@ pub fn query(
         &props.offset,
         &props.count,
       ],
-    )?
+    ).await?
     .into_iter()
     .map(|row| row.into())
     .collect();
