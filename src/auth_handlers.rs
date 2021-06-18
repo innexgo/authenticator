@@ -154,7 +154,7 @@ pub async fn api_key_new_valid(
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
-  let password = password_service::get_by_password_id(con, user.user_id)
+  let password = password_service::get_by_user_id(con, user.user_id)
     .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::PasswordNonexistent)?;
@@ -306,6 +306,7 @@ pub async fn verification_challenge_new(
   // return json
   fill_verification_challenge(con, verification_challenge).await
 }
+
 pub async fn user_new(
   _config: Config,
   db: Db,
@@ -365,6 +366,7 @@ pub async fn user_new(
   // return filled struct
   fill_user(con, user).await
 }
+
 pub async fn password_reset_new(
   config: Config,
   db: Db,

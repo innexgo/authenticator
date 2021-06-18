@@ -62,6 +62,24 @@ pub async fn add(
   })
 }
 
+pub async fn get_by_user_id(
+  con: &mut impl GenericClient,
+  user_id: i64,
+) -> Result<Option<Password>, tokio_postgres::Error> {
+  let result = con
+    .query_opt(
+      "SELECT p.* FROM password p
+       INNER JOIN (SELECT max(password_id) id FROM password GROUP BY creator_user_id) maxids ON maxids.id = p.password_id
+       WHERE p.creator_user_id = $1
+      ",
+      &[&user_id],
+    ).await?
+    .map(|x| x.into());
+
+  Ok(result)
+}
+
+#[allow(unused)]
 pub async fn get_by_password_id(
   con: &mut impl GenericClient,
   password_id: i64,
@@ -72,7 +90,6 @@ pub async fn get_by_password_id(
       &[&password_id],
     ).await?
     .map(|x| x.into());
-
   Ok(result)
 }
 

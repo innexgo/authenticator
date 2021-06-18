@@ -31,6 +31,7 @@ pub async fn add(
         verification_challenge_key_hash
        )
        VALUES($1, $2, $3, $4)
+       RETURNING user_id
       ",
       &[
         &creation_time,
