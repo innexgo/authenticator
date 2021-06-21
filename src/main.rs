@@ -1,4 +1,5 @@
 #![feature(async_closure)]
+use std::error::Error;
 use warp::Filter;
 use clap::Clap;
 use tokio_postgres::{Client, NoTls};
@@ -50,7 +51,19 @@ async fn main() -> Result<(), tokio_postgres::Error> {
     site_external_url,
   } = Opts::parse();
 
-  let (client, connection) = tokio_postgres::connect(&database_url, NoTls).await?;
+  let (client, connection) = loop {
+    match tokio_postgres::connect(&database_url, NoTls).await {
+      Ok(v) => break v,
+      Err(e) => utils::log(utils::Event {
+        msg: e.to_string(),
+        source: e.source().map(|x| x.to_string()),
+        severity: utils::SeverityKind::Error,
+      }),
+    }
+
+    // sleep for 5 seconds
+    std::thread::sleep(std::time::Duration::from_secs(5));
+  };
 
   // The connection object performs the actual communication with the database,
   // so spawn it off to run on its own.
