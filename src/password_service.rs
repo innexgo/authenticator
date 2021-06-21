@@ -118,11 +118,11 @@ pub async fn query(
     } else {
         ""
     },
-    " AND ($1 == NULL OR p.password_id = $1)",
-    " AND ($2 == NULL OR p.creation_time >= $2)",
-    " AND ($3 == NULL OR p.creation_time <= $3)",
-    " AND ($4 == NULL OR p.creator_user_id = $4)",
-    " AND ($5 == NULL OR p.password_kind = $5)",
+    " AND ($1::bigint IS NULL OR p.password_id = $1)",
+    " AND ($2::bigint IS NULL OR p.creation_time >= $2)",
+    " AND ($3::bigint IS NULL OR p.creation_time <= $3)",
+    " AND ($4::bigint IS NULL OR p.creator_user_id = $4)",
+    " AND ($5::bigint IS NULL OR p.password_kind = $5)",
     " ORDER BY p.password_id",
     " LIMIT $6",
     " OFFSET $7",

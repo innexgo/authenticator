@@ -112,11 +112,11 @@ pub async fn query(
   let results = con
     .query(
       "SELECT u.* FROM user_t u WHERE 1 = 1
-       AND ($1 == NULL OR u.user_id = $1)
-       AND ($2 == NULL OR u.creation_time >= $2)
-       AND ($3 == NULL OR u.creation_time <= $3)
-       AND ($4 == NULL OR u.name = $4)
-       AND ($5 == NULL OR u.email = $5)
+       AND ($1::bigint IS NULL OR u.user_id = $1)
+       AND ($2::bigint IS NULL OR u.creation_time >= $2)
+       AND ($3::bigint IS NULL OR u.creation_time <= $3)
+       AND ($4::text   IS NULL OR u.name = $4)
+       AND ($5::text   IS NULL OR u.email = $5)
        ORDER BY u.user_id
        LIMIT $7
        OFFSET $8
