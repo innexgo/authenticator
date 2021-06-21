@@ -112,7 +112,6 @@ pub async fn query(
       &[
         &props.api_key_id,
         &props.creator_user_id,
-        &props.creation_time,
         &props.min_creation_time,
         &props.max_creation_time,
         &props.min_duration,
