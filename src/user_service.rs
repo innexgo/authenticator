@@ -113,23 +113,22 @@ pub async fn query(
     .query(
       "SELECT u.* FROM user_t u WHERE 1 = 1
        AND ($1 == NULL OR u.user_id = $1)
-       AND ($2 == NULL OR u.creation_time = $2)
-       AND ($3 == NULL OR u.creation_time >= $3)
-       AND ($4 == NULL OR u.creation_time <= $4)
-       AND ($5 == NULL OR u.name = $5)
-       AND ($6 == NULL OR u.email = $6)
+       AND ($2 == NULL OR u.creation_time >= $2)
+       AND ($3 == NULL OR u.creation_time <= $3)
+       AND ($4 == NULL OR u.name = $4)
+       AND ($5 == NULL OR u.email = $5)
        ORDER BY u.user_id
-       LIMIT $7, $8
+       LIMIT $7
+       OFFSET $8
       ",
       &[
         &props.user_id,
-        &props.creation_time,
         &props.min_creation_time,
         &props.max_creation_time,
         &props.user_name,
         &props.user_email,
-        &props.offset,
-        &props.count,
+        &props.count.unwrap_or(0),
+        &props.offset.unwrap_or(100),
       ],
     ).await?
     .into_iter()

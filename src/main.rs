@@ -1,4 +1,5 @@
 #![feature(async_closure)]
+use warp::Filter;
 use clap::Clap;
 use tokio_postgres::{Client, NoTls};
 use std::sync::Arc;
@@ -66,7 +67,16 @@ async fn main() -> Result<(), tokio_postgres::Error> {
 
   let api = auth_api::api(Config { site_external_url }, db, mail_service);
 
-  warp::serve(api).run(([0, 0, 0, 0], port)).await;
+  let log = warp::log::custom(|info| {
+    // Use a log macro, or slog, or println, or whatever!
+    utils::log(utils::Event {
+        msg: info.method().to_string(),
+        source: Some(info.path().to_string()),
+        severity: utils::SeverityKind::Info,
+    });
+  });
+
+  warp::serve(api.with(log)).run(([0, 0, 0, 0], port)).await;
 
   Ok(())
 }

@@ -119,13 +119,13 @@ pub async fn query(
         ""
     },
     " AND ($1 == NULL OR p.password_id = $1)",
-    " AND ($2 == NULL OR p.creation_time = $2)",
-    " AND ($3 == NULL OR p.creation_time >= $3)",
-    " AND ($4 == NULL OR p.creation_time <= $4)",
-    " AND ($5 == NULL OR p.creator_user_id = $5)",
-    " AND ($6 == NULL OR p.password_kind = $6)",
+    " AND ($2 == NULL OR p.creation_time >= $2)",
+    " AND ($3 == NULL OR p.creation_time <= $3)",
+    " AND ($4 == NULL OR p.creator_user_id = $4)",
+    " AND ($5 == NULL OR p.password_kind = $5)",
     " ORDER BY p.password_id",
-    " LIMIT $7, $8",
+    " LIMIT $6",
+    " OFFSET $7",
   ]
   .join("");
 
@@ -136,13 +136,12 @@ pub async fn query(
       &stmnt,
       &[
         &props.password_id,
-        &props.creation_time,
         &props.min_creation_time,
         &props.max_creation_time,
         &props.creator_user_id,
         &props.password_kind.map(|x| x as i64),
-        &props.offset,
-        &props.count,
+        &props.count.unwrap_or(100),
+        &props.offset.unwrap_or(0),
       ],
     ).await?
     .into_iter()
