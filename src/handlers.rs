@@ -6,7 +6,7 @@ use auth_service_api::request;
 use auth_service_api::response;
 
 use super::api_key_service;
-use super::auth_db_types::*;
+use super::db_types::*;
 use super::password_reset_service;
 use super::password_service;
 use super::user_service;

@@ -1,4 +1,4 @@
-use super::auth_db_types::PasswordReset;
+use super::db_types::PasswordReset;
 use super::utils::current_time_millis;
 use tokio_postgres::GenericClient;
 

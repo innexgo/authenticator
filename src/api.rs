@@ -1,4 +1,4 @@
-use super::auth_handlers;
+use super::handlers;
 use super::utils;
 use super::Config;
 use super::Db;
@@ -24,77 +24,77 @@ pub fn api(
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "verification_challenge" / "new"),
-      auth_handlers::verification_challenge_new,
+      handlers::verification_challenge_new,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "api_key" / "new_valid"),
-      auth_handlers::api_key_new_valid,
+      handlers::api_key_new_valid,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "api_key" / "new_cancel"),
-      auth_handlers::api_key_new_cancel,
+      handlers::api_key_new_cancel,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "user" / "new"),
-      auth_handlers::user_new,
+      handlers::user_new,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "password_reset" / "new"),
-      auth_handlers::password_reset_new,
+      handlers::password_reset_new,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "password" / "new_reset"),
-      auth_handlers::password_new_reset,
+      handlers::password_new_reset,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "password" / "new_change"),
-      auth_handlers::password_new_change,
+      handlers::password_new_change,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "password" / "new_cancel"),
-      auth_handlers::password_new_cancel,
+      handlers::password_new_cancel,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "user" / "view"),
-      auth_handlers::user_view,
+      handlers::user_view,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "password" / "view"),
-      auth_handlers::password_view,
+      handlers::password_view,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("public" / "api_key" / "view"),
-      auth_handlers::api_key_view,
+      handlers::api_key_view,
     ))
     // Private API (note that there's no "public" at the beginning, so nginx won't expose it)
     .or(adapter(
@@ -102,14 +102,14 @@ pub fn api(
       db.clone(),
       mail_service.clone(),
       warp::path!("get_user_by_id"),
-      auth_handlers::get_user_by_id,
+      handlers::get_user_by_id,
     ))
     .or(adapter(
       config.clone(),
       db.clone(),
       mail_service.clone(),
       warp::path!("get_user_by_api_key_if_valid"),
-      auth_handlers::get_user_by_api_key_if_valid,
+      handlers::get_user_by_api_key_if_valid,
     ))
     .recover(handle_rejection)
 }

@@ -10,9 +10,9 @@ use mail_service_api::client::MailService;
 
 mod utils;
 
-mod auth_api;
-mod auth_db_types;
-mod auth_handlers;
+mod api;
+mod db_types;
+mod handlers;
 
 // database interface
 mod api_key_service;
@@ -78,7 +78,7 @@ async fn main() -> Result<(), tokio_postgres::Error> {
   // open connection to mail service
   let mail_service = MailService::new(&mail_service_url).await;
 
-  let api = auth_api::api(Config { site_external_url }, db, mail_service);
+  let api = api::api(Config { site_external_url }, db, mail_service);
 
   let log = warp::log::custom(|info| {
     // Use a log macro, or slog, or println, or whatever!

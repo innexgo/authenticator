@@ -1,4 +1,4 @@
-use super::auth_db_types::VerificationChallenge;
+use super::db_types::VerificationChallenge;
 use super::utils::current_time_millis;
 use tokio_postgres::GenericClient;
 
