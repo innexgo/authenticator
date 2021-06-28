@@ -111,9 +111,9 @@ pub async fn query(
       &stmnt,
       &[
         &props.api_key_id,
-        &props.creator_user_id,
         &props.min_creation_time,
         &props.max_creation_time,
+        &props.creator_user_id,
         &props.min_duration,
         &props.max_duration,
         &props.api_key_kind.map(|x| x as i64),
