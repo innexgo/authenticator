@@ -31,7 +31,7 @@ pub async fn add(
   let password_id = con
     .query_one(
       "INSERT INTO
-       password(
+       password_t(
          creation_time,
          creator_user_id,
          password_kind,
@@ -68,8 +68,8 @@ pub async fn get_by_user_id(
 ) -> Result<Option<Password>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT p.* FROM password p
-       INNER JOIN (SELECT max(password_id) id FROM password GROUP BY creator_user_id) maxids ON maxids.id = p.password_id
+      "SELECT p.* FROM password_t p
+       INNER JOIN (SELECT max(password_id) id FROM password_t GROUP BY creator_user_id) maxids ON maxids.id = p.password_id
        WHERE p.creator_user_id = $1
       ",
       &[&user_id],
@@ -86,7 +86,7 @@ pub async fn get_by_password_id(
 ) -> Result<Option<Password>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT * FROM password WHERE password_id=$1",
+      "SELECT * FROM password_t WHERE password_id=$1",
       &[&password_id],
     ).await?
     .map(|x| x.into());
@@ -99,7 +99,7 @@ pub async fn exists_by_password_reset_key_hash(
 ) -> Result<bool, tokio_postgres::Error> {
   let count: i64 = con
     .query_one(
-      "SELECT count(*) FROM password WHERE password_reset_key_hash=$1",
+      "SELECT count(*) FROM password_t WHERE password_reset_key_hash=$1",
       &[&password_reset_key_hash],
     ).await?
     .get(0);
@@ -112,20 +112,18 @@ pub async fn query(
 ) -> Result<Vec<Password>, tokio_postgres::Error> {
   let sql = [
 
-    "SELECT p.* FROM password p",
+    "SELECT p.* FROM password_t p",
     if props.only_recent {
-        " INNER JOIN (SELECT max(password_id) id FROM password GROUP BY creator_user_id) maxids ON maxids.id = p.password_id"
+        " INNER JOIN (SELECT max(password_id) id FROM password_t GROUP BY creator_user_id) maxids ON maxids.id = p.password_id"
     } else {
         ""
     },
-    " AND ($1::bigint IS NULL OR p.password_id = $1)",
-    " AND ($2::bigint IS NULL OR p.creation_time >= $2)",
-    " AND ($3::bigint IS NULL OR p.creation_time <= $3)",
-    " AND ($4::bigint IS NULL OR p.creator_user_id = $4)",
-    " AND ($5::bigint IS NULL OR p.password_kind = $5)",
+    " AND ($1::bigint[] IS NULL OR p.password_id = $1)",
+    " AND ($2::bigint   IS NULL OR p.creation_time >= $2)",
+    " AND ($3::bigint   IS NULL OR p.creation_time <= $3)",
+    " AND ($4::bigint[] IS NULL OR p.creator_user_id = $4)",
+    " AND ($5::bigint   IS NULL OR p.password_kind = $5)",
     " ORDER BY p.password_id",
-    " LIMIT $6",
-    " OFFSET $7",
   ]
   .join("");
 
@@ -140,8 +138,6 @@ pub async fn query(
         &props.max_creation_time,
         &props.creator_user_id,
         &props.password_kind.map(|x| x as i64),
-        &props.count.unwrap_or(100),
-        &props.offset.unwrap_or(0),
       ],
     ).await?
     .into_iter()

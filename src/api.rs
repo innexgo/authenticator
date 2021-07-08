@@ -11,6 +11,17 @@ use std::future::Future;
 use warp::http::StatusCode;
 use warp::Filter;
 
+/// Helper to combine the multiple filters together with Filter::or, possibly boxing the types in
+/// the process. This greatly helps the build times for `ipfs-http`.
+/// https://github.com/seanmonstar/warp/issues/507#issuecomment-615974062
+macro_rules! combine {
+  ($x:expr, $($y:expr),+) => {{
+      let filter = ($x).boxed();
+      $( let filter = (filter.or($y)).boxed(); )+
+      filter
+  }}
+}
+
 /// The function that will show all ones to call
 pub fn api(
   config: Config,
@@ -19,97 +30,99 @@ pub fn api(
 ) -> impl Filter<Extract = impl warp::Reply, Error = Infallible> + Clone {
   // public API
   api_info()
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "verification_challenge" / "new"),
-      handlers::verification_challenge_new,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "api_key" / "new_valid"),
-      handlers::api_key_new_valid,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "api_key" / "new_cancel"),
-      handlers::api_key_new_cancel,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "user" / "new"),
-      handlers::user_new,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "password_reset" / "new"),
-      handlers::password_reset_new,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "password" / "new_reset"),
-      handlers::password_new_reset,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "password" / "new_change"),
-      handlers::password_new_change,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "password" / "new_cancel"),
-      handlers::password_new_cancel,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "user" / "view"),
-      handlers::user_view,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "password" / "view"),
-      handlers::password_view,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("public" / "api_key" / "view"),
-      handlers::api_key_view,
-    ))
-    // Private API (note that there's no "public" at the beginning, so nginx won't expose it)
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("get_user_by_id"),
-      handlers::get_user_by_id,
-    ))
-    .or(adapter(
-      config.clone(),
-      db.clone(),
-      mail_service.clone(),
-      warp::path!("get_user_by_api_key_if_valid"),
-      handlers::get_user_by_api_key_if_valid,
+    .or(combine!(
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "verification_challenge" / "new"),
+        handlers::verification_challenge_new,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "api_key" / "new_valid"),
+        handlers::api_key_new_valid,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "api_key" / "new_cancel"),
+        handlers::api_key_new_cancel,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "user" / "new"),
+        handlers::user_new,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "password_reset" / "new"),
+        handlers::password_reset_new,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "password" / "new_reset"),
+        handlers::password_new_reset,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "password" / "new_change"),
+        handlers::password_new_change,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "password" / "new_cancel"),
+        handlers::password_new_cancel,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "user" / "view"),
+        handlers::user_view,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "password" / "view"),
+        handlers::password_view,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("public" / "api_key" / "view"),
+        handlers::api_key_view,
+      ),
+      // Private API (note that there's no "public" at the beginning, so nginx won't expose it)
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("get_user_by_id"),
+        handlers::get_user_by_id,
+      ),
+      adapter(
+        config.clone(),
+        db.clone(),
+        mail_service.clone(),
+        warp::path!("get_user_by_api_key_if_valid"),
+        handlers::get_user_by_api_key_if_valid,
+      )
     ))
     .recover(handle_rejection)
 }
@@ -129,7 +142,7 @@ fn adapter<PropsType, ResponseType, F>(
   mail_service: MailService,
   filter: impl Filter<Extract = (), Error = warp::Rejection> + Clone,
   handler: fn(Config, Db, MailService, PropsType) -> F,
-) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone
 where
   F: Future<Output = Result<ResponseType, AuthError>> + Send,
   PropsType: Send + serde::de::DeserializeOwned,

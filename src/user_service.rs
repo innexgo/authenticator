@@ -112,14 +112,12 @@ pub async fn query(
   let results = con
     .query(
       "SELECT u.* FROM user_t u WHERE 1 = 1
-       AND ($1::bigint IS NULL OR u.user_id = $1)
+       AND ($1::bigint[] IS NULL OR u.user_id = $1)
        AND ($2::bigint IS NULL OR u.creation_time >= $2)
        AND ($3::bigint IS NULL OR u.creation_time <= $3)
-       AND ($4::text   IS NULL OR u.name = $4)
-       AND ($5::text   IS NULL OR u.email = $5)
+       AND ($4::text[]   IS NULL OR u.name = $4)
+       AND ($5::text[]   IS NULL OR u.email = $5)
        ORDER BY u.user_id
-       LIMIT $7
-       OFFSET $8
       ",
       &[
         &props.user_id,
@@ -127,8 +125,6 @@ pub async fn query(
         &props.max_creation_time,
         &props.user_name,
         &props.user_email,
-        &props.count.unwrap_or(0),
-        &props.offset.unwrap_or(100),
       ],
     ).await?
     .into_iter()

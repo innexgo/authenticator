@@ -8,10 +8,17 @@ pub async fn add(
   creator_user_id: i64,
 ) -> Result<PasswordReset, tokio_postgres::Error> {
   let creation_time = current_time_millis();
-  con.execute(
-    "INSERT INTO password_reset values ($1, $2, $3)",
-    &[&password_reset_key_hash, &creation_time, &creator_user_id],
-  ).await?;
+  con
+    .execute(
+      "
+    INSERT INTO password_reset_t(
+        password_reset_key_hash,
+        creation_time,
+        creator_user_id
+    ) VALUES ($1, $2, $3)",
+      &[&password_reset_key_hash, &creation_time, &creator_user_id],
+    )
+    .await?;
 
   Ok(PasswordReset {
     password_reset_key_hash,
@@ -26,9 +33,10 @@ pub async fn get_by_password_reset_key_hash(
 ) -> Result<Option<PasswordReset>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT * FROM password_reset WHERE password_reset_key_hash=$1",
+      "SELECT * FROM password_reset_t WHERE password_reset_key_hash=$1",
       &[&password_reset_key_hash],
-    ).await?
+    )
+    .await?
     .map(|row| PasswordReset {
       password_reset_key_hash: row.get("password_reset_key_hash"),
       creation_time: row.get("creation_time"),

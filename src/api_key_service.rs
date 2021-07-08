@@ -32,7 +32,7 @@ pub async fn add(
   let api_key_id = con
     .query_one(
       "INSERT INTO
-       api_key(
+       api_key_t(
            creation_time,
            creator_user_id,
            api_key_hash,
@@ -69,7 +69,7 @@ pub async fn get_by_api_key_hash(
 ) -> Result<Option<ApiKey>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT * FROM api_key WHERE api_key_hash=$1",
+      "SELECT * FROM api_key_t WHERE api_key_hash=$1",
       &[&api_key_hash],
     ).await?
     .map(|x| x.into());
@@ -84,23 +84,21 @@ pub async fn query(
   // TODO prevent getting meaningless duration
 
   let sql = [
-    "SELECT a.* FROM api_key a",
+    "SELECT a.* FROM api_key_t a",
     if props.only_recent {
-        " INNER JOIN (SELECT max(api_key_id) id FROM api_key GROUP BY api_key_hash) maxids ON maxids.id = a.api_key_id"
+        " INNER JOIN (SELECT max(api_key_id) id FROM api_key_t GROUP BY api_key_hash) maxids ON maxids.id = a.api_key_id"
     } else {
         ""
     },
     " WHERE 1 = 1",
-    " AND ($1::bigint IS NULL OR a.api_key_id = $1)",
-    " AND ($2::bigint IS NULL OR a.creation_time >= $2)",
-    " AND ($3::bigint IS NULL OR a.creation_time <= $3)",
-    " AND ($4::bigint IS NULL OR a.creator_user_id = $4)",
-    " AND ($5::bigint IS NULL OR a.duration >= $5)",
-    " AND ($6::bigint IS NULL OR a.duration <= $6)",
-    " AND ($7::bigint IS NULL OR a.api_key_kind = $7)",
+    " AND ($1::bigint[] IS NULL OR a.api_key_id IN $1)",
+    " AND ($2::bigint   IS NULL OR a.creation_time >= $2)",
+    " AND ($3::bigint   IS NULL OR a.creation_time <= $3)",
+    " AND ($4::bigint[] IS NULL OR a.creator_user_id IN $4)",
+    " AND ($5::bigint   IS NULL OR a.duration >= $5)",
+    " AND ($6::bigint   IS NULL OR a.duration <= $6)",
+    " AND ($7::bigint   IS NULL OR a.api_key_kind = $7)",
     " ORDER BY a.api_key_id",
-    " LIMIT $8",
-    " OFFSET $9",
   ]
   .join("");
 
@@ -117,8 +115,6 @@ pub async fn query(
         &props.min_duration,
         &props.max_duration,
         &props.api_key_kind.map(|x| x as i64),
-        &props.count.unwrap_or(100),
-        &props.offset.unwrap_or(0),
       ],
     ).await?
     .into_iter()
