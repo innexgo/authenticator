@@ -8,7 +8,7 @@ CREATE DATABASE auth;
 \c auth;
 
 drop table if exists verification_challenge_t;
-create table verification_challenge(
+create table verification_challenge_t(
   verification_challenge_key_hash varchar(64) not null primary key,
   creation_time bigint not null,
   name text not null,
@@ -26,14 +26,14 @@ create table user_t(
 );
 
 drop table if exists password_reset_t;
-create table password_reset(
+create table password_reset_t(
   password_reset_key_hash varchar(64) not null primary key,
   creation_time bigint not null,
   creator_user_id bigint not null
 );
 
 drop table if exists password_t;
-create table password( 
+create table password_t(
   password_id bigserial primary key,
   creation_time bigint not null,
   creator_user_id bigint not null,
@@ -43,7 +43,7 @@ create table password(
 );
 
 drop table if exists api_key_t;
-create table api_key(
+create table api_key_t(
   api_key_id bigserial primary key,
   creation_time bigint not null,
   creator_user_id bigint not null,

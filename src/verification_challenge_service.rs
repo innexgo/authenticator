@@ -26,7 +26,7 @@ pub async fn add(
 
   con.execute(
     "INSERT INTO
-     verification_challenge(
+     verification_challenge_t(
          verification_challenge_key_hash,
          creation_time,
          name,
@@ -58,7 +58,7 @@ pub async fn get_by_verification_challenge_key_hash(
 ) -> Result<Option<VerificationChallenge>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT * FROM verification_challenge WHERE verification_challenge_key_hash=$1",
+      "SELECT * FROM verification_challenge_t WHERE verification_challenge_key_hash=$1",
       &[&verification_challenge_key_hash],
     ).await?
     .map(|row| row.into());
@@ -72,7 +72,7 @@ pub async fn get_last_email_sent_time(
 ) -> Result<Option<i64>, tokio_postgres::Error> {
   let time = con
     .query_one(
-      "SELECT MAX(creation_time) FROM verification_challenge WHERE email=$1",
+      "SELECT MAX(creation_time) FROM verification_challenge_t WHERE email=$1",
       &[&email],
     ).await?
     .get(0);

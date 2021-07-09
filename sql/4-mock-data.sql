@@ -8,9 +8,9 @@
 -- user: gamma@example.com 
 -- pass: Boolean500
 
+\c auth
 
-
-INSERT INTO verification_challenge(
+INSERT INTO verification_challenge_t(
   verification_challenge_key_hash,
   creation_time,
   name,
@@ -31,7 +31,7 @@ INSERT INTO user_t(
 (1, 'beta',  'beta@example.com',  '2'),
 (1, 'gamma', 'gamma@example.com', '3');
 
-INSERT INTO password(
+INSERT INTO password_t(
   creation_time,
   creator_user_id,
   password_kind,
