@@ -17,6 +17,7 @@ drop table if exists user_data_t;
 create table user_data_t(
   user_data_id bigserial primary key,
   creation_time bigint not null,
+  creator_user_id bigint not null,
   user_id bigint not null,
   name text not null
 );
@@ -25,6 +26,8 @@ drop table if exists verification_challenge_t;
 create table verification_challenge_t(
   verification_challenge_key_hash varchar(64) not null primary key,
   creation_time bigint not null,
+  creator_user_id bigint not null,
+  to_parent boolean not null,
   email text not null
 );
 

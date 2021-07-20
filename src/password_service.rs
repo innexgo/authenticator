@@ -10,9 +10,6 @@ impl From<tokio_postgres::row::Row> for Password {
       password_id: row.get("password_id"),
       creation_time: row.get("creation_time"),
       creator_user_id: row.get("creator_user_id"),
-      password_kind: (row.get::<_, i64>("password_kind") as u8)
-        .try_into()
-        .unwrap(),
       password_hash: row.get("password_hash"),
       password_reset_key_hash: row.get("password_reset_key_hash"),
     }
@@ -22,9 +19,8 @@ impl From<tokio_postgres::row::Row> for Password {
 pub async fn add(
   con: &mut impl GenericClient,
   creator_user_id: i64,
-  password_kind: auth_service_api::request::PasswordKind,
   password_hash: String,
-  password_reset_key_hash: String,
+  password_reset_key_hash: Option<String>,
 ) -> Result<Password, tokio_postgres::Error> {
   let creation_time = current_time_millis();
 
@@ -34,7 +30,6 @@ pub async fn add(
        password_t(
          creation_time,
          creator_user_id,
-         password_kind,
          password_hash,
          password_reset_key_hash
        )
@@ -44,7 +39,6 @@ pub async fn add(
       &[
         &creation_time,
         &creator_user_id,
-        &(password_kind.clone() as i64),
         &password_hash,
         &password_reset_key_hash,
       ],
@@ -56,7 +50,6 @@ pub async fn add(
     password_id,
     creation_time,
     creator_user_id,
-    password_kind,
     password_hash,
     password_reset_key_hash,
   })
@@ -122,7 +115,7 @@ pub async fn query(
     " AND ($2::bigint   IS NULL OR p.creation_time >= $2)",
     " AND ($3::bigint   IS NULL OR p.creation_time <= $3)",
     " AND ($4::bigint[] IS NULL OR p.creator_user_id = $4)",
-    " AND ($5::bigint   IS NULL OR p.password_kind = $5)",
+    " AND ($5::boolean  IS NULL OR p.password_reset_key_hash IS NOT NULL = $5)",
     " ORDER BY p.password_id",
   ]
   .join("");
@@ -137,7 +130,7 @@ pub async fn query(
         &props.min_creation_time,
         &props.max_creation_time,
         &props.creator_user_id,
-        &props.password_kind.map(|x| x as i64),
+        &props.from_reset,
       ],
     ).await?
     .into_iter()

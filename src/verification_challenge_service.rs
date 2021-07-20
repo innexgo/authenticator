@@ -8,6 +8,8 @@ impl From<tokio_postgres::row::Row> for VerificationChallenge {
     VerificationChallenge {
       verification_challenge_key_hash: row.get("verification_challenge_key_hash"),
       creation_time: row.get("creation_time"),
+      creator_user_id: row.get("creator_user_id"),
+      to_parent: row.get("to_parent"),
       email: row.get("email"),
     }
   }
@@ -16,9 +18,9 @@ impl From<tokio_postgres::row::Row> for VerificationChallenge {
 pub async fn add(
   con: &mut impl GenericClient,
   verification_challenge_key_hash: String,
-  name: String,
   email: String,
-  password_hash: String,
+  creator_user_id: i64,
+  to_parent: bool,
 ) -> Result<VerificationChallenge, tokio_postgres::Error> {
   let creation_time = current_time_millis();
 
@@ -27,26 +29,26 @@ pub async fn add(
      verification_challenge_t(
          verification_challenge_key_hash,
          creation_time,
-         name,
-         email,
-         password_hash
+         creator_user_id,
+         to_parent,
+         email
      )
      VALUES($1, $2, $3, $4, $5)",
     &[
       &verification_challenge_key_hash,
       &creation_time,
-      &name,
+      &creator_user_id,
+      &to_parent,
       &email,
-      &password_hash,
     ],
   ).await?;
 
   Ok(VerificationChallenge {
     verification_challenge_key_hash,
     creation_time,
-    name,
+    creator_user_id,
+    to_parent,
     email,
-    password_hash,
   })
 }
 
@@ -76,4 +78,34 @@ pub async fn get_last_email_sent_time(
     .get(0);
 
   Ok(time)
+}
+
+
+pub async fn query(
+  con: &mut impl GenericClient,
+  props: auth_service_api::request::VerificationChallengeViewProps,
+) -> Result<Vec<VerificationChallenge>, tokio_postgres::Error> {
+  let results = con
+    .query(
+      "SELECT vc.* FROM verification_challenge_t vc WHERE 1 = 1
+       AND ($1::bigint   IS NULL OR vc.creation_time >= $1)
+       AND ($2::bigint   IS NULL OR vc.creation_time <= $2)
+       AND ($3::bigint[] IS NULL OR vc.creator_user_id = ANY($3))
+       AND ($4::boolean  IS NULL OR vc.to_parent = $4)
+       AND ($5::text[]   IS NULL OR vc.email = ANY($5))
+       ORDER BY vc.verification_challenge_key_hash
+      ",
+      &[
+        &props.min_creation_time,
+        &props.max_creation_time,
+        &props.creator_user_id,
+        &props.to_parent,
+        &props.email,
+      ],
+    )
+    .await?
+    .into_iter()
+    .map(|row| row.into())
+    .collect();
+  Ok(results)
 }
