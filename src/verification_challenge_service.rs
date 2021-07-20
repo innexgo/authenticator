@@ -8,9 +8,7 @@ impl From<tokio_postgres::row::Row> for VerificationChallenge {
     VerificationChallenge {
       verification_challenge_key_hash: row.get("verification_challenge_key_hash"),
       creation_time: row.get("creation_time"),
-      name: row.get("name"),
       email: row.get("email"),
-      password_hash: row.get("password_hash"),
     }
   }
 }
