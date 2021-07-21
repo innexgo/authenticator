@@ -7,6 +7,8 @@ use auth_service_api::response;
 
 use super::api_key_service;
 use super::db_types::*;
+use super::email_service;
+use super::parent_permission_service;
 use super::password_reset_service;
 use super::password_service;
 use super::user_service;
@@ -59,8 +61,23 @@ async fn fill_user(
   Ok(response::User {
     user_id: user.user_id,
     creation_time: user.creation_time,
-    name: user.name,
-    email: user.email,
+  })
+}
+
+async fn fill_user_data(
+  con: &mut tokio_postgres::Client,
+  user_data: UserData,
+) -> Result<response::UserData, response::AuthError> {
+  let creator = user_service::get_by_user_id(con, user_data.creator_user_id)
+    .await
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::UserNonexistent)?;
+
+  Ok(response::UserData {
+    user_data_id: user_data.user_data_id,
+    creation_time: user_data.creation_time,
+    creator: fill_user(con, creator).await?,
+    name: user_data.name,
   })
 }
 
@@ -88,6 +105,64 @@ async fn fill_api_key(
   })
 }
 
+async fn fill_email(
+  con: &mut tokio_postgres::Client,
+  email: Email,
+) -> Result<response::Email, response::AuthError> {
+  let creator = user_service::get_by_user_id(con, email.creator_user_id)
+    .await
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::UserNonexistent)?;
+
+  let verification_challenge =
+    verification_challenge_service::get_by_verification_challenge_key_hash(
+      con,
+      &email.verification_challenge_key_hash,
+    )
+    .await
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::VerificationChallengeNonexistent)?;
+
+  Ok(response::Email {
+    email_id: email.email_id,
+    creation_time: email.creation_time,
+    creator: fill_user(con, creator).await?,
+    verification_challenge: fill_verification_challenge(con, verification_challenge).await?,
+  })
+}
+
+async fn fill_parent_permission(
+  con: &mut tokio_postgres::Client,
+  parent_permission: ParentPermission,
+) -> Result<response::ParentPermission, response::AuthError> {
+  let user = user_service::get_by_user_id(con, parent_permission.user_id)
+    .await
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::UserNonexistent)?;
+
+  let verification_challenge = match parent_permission.verification_challenge_key_hash {
+    Some(verification_challenge_key_hash) => {
+      let verification_challenge =
+        verification_challenge_service::get_by_verification_challenge_key_hash(
+          con,
+          &verification_challenge_key_hash,
+        )
+        .await
+        .map_err(report_postgres_err)?
+        .ok_or(response::AuthError::VerificationChallengeNonexistent)?;
+      Some(fill_verification_challenge(con, verification_challenge).await?)
+    }
+    _ => None,
+  };
+
+  Ok(response::ParentPermission {
+    parent_permission_id: parent_permission.parent_permission_id,
+    creation_time: parent_permission.creation_time,
+    user: fill_user(con, user).await?,
+    verification_challenge,
+  })
+}
+
 async fn fill_password(
   con: &mut tokio_postgres::Client,
   password: Password,
@@ -97,11 +172,23 @@ async fn fill_password(
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::UserNonexistent)?;
 
+  let password_reset = match password.password_reset_key_hash {
+    Some(password_reset_key_hash) => {
+      let password_reset =
+        password_reset_service::get_by_password_reset_key_hash(con, &password_reset_key_hash)
+          .await
+          .map_err(report_postgres_err)?
+          .ok_or(response::AuthError::PasswordResetNonexistent)?;
+      Some(fill_password_reset(con, password_reset).await?)
+    }
+    _ => None,
+  };
+
   Ok(response::Password {
     password_id: password.password_id,
     creation_time: password.creation_time,
     creator: fill_user(con, creator).await?,
-    password_kind: password.password_kind,
+    password_reset,
   })
 }
 
@@ -120,7 +207,7 @@ async fn fill_verification_challenge(
 ) -> Result<response::VerificationChallenge, response::AuthError> {
   Ok(response::VerificationChallenge {
     creation_time: verification_challenge.creation_time,
-    name: verification_challenge.name,
+    to_parent: verification_challenge.to_parent,
     email: verification_challenge.email,
   })
 }
@@ -149,12 +236,12 @@ pub async fn api_key_new_valid(
 ) -> Result<response::ApiKey, response::AuthError> {
   let con = &mut *db.lock().await;
 
-  let user = user_service::get_by_user_email(con, &props.user_email)
+  let email = email_service::get_by_email(con, &props.user_email)
     .await
     .map_err(report_postgres_err)?
-    .ok_or(response::AuthError::UserNonexistent)?;
+    .ok_or(response::AuthError::EmailNonexistent)?;
 
-  let password = password_service::get_by_user_id(con, user.user_id)
+  let password = password_service::get_by_user_id(con, email.creator_user_id)
     .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::PasswordNonexistent)?;
@@ -166,6 +253,8 @@ pub async fn api_key_new_valid(
     return Err(response::AuthError::PasswordIncorrect);
   }
 
+  // TODO verify parental permission here
+
   let raw_api_key = utils::gen_random_string();
 
   let mut sp = con.transaction().await.map_err(report_postgres_err)?;
@@ -173,7 +262,7 @@ pub async fn api_key_new_valid(
   // add new api key
   let api_key = api_key_service::add(
     &mut sp,
-    user.user_id,
+    email.creator_user_id,
     utils::hash_str(&raw_api_key),
     request::ApiKeyKind::Valid,
     props.duration,
@@ -228,38 +317,28 @@ pub async fn verification_challenge_new(
   mail_service: MailService,
   props: request::VerificationChallengeNewProps,
 ) -> Result<response::VerificationChallenge, response::AuthError> {
-  // perform basic validation
-  if props.user_email.is_empty() {
-    return Err(response::AuthError::UserEmailEmpty);
-  }
-
-  // make sure user name is typable
-  if props.user_name.is_empty() {
-    return Err(response::AuthError::UserNameEmpty);
-  }
-
-  // server side validation of password strength
-  if !utils::is_secure_password(&props.user_password) {
-    return Err(response::AuthError::PasswordInsecure);
-  }
-
   let con = &mut *db.lock().await;
+  // api key verification required
+  let api_key = get_api_key_if_valid(con, &props.api_key).await?;
 
-  // if user name is taken
-  if user_service::exists_by_email(con, &props.user_email)
-    .await
-    .map_err(report_postgres_err)?
+  // if to_parent, check that parental permission doesn't exist yet
+  if props.to_parent
+    && parent_permission_service::get_by_user_id(con, api_key.creator_user_id)
+      .await
+      .map_err(report_postgres_err)?
+      .is_some()
   {
-    return Err(response::AuthError::UserExistent);
+    return Err(response::AuthError::ParentPermissionExistent);
   }
 
   let last_email_sent_time =
-    verification_challenge_service::get_last_email_sent_time(con, &props.user_email)
+    verification_challenge_service::get_last_email_sent_time(con, &props.user_id)
       .await
       .map_err(report_postgres_err)?;
 
   if let Some(time) = last_email_sent_time {
     if time + FIFTEEN_MINUTES as i64 > utils::current_time_millis() {
+        // TOOD more descriptive error
       return Err(response::AuthError::EmailUnknown);
     }
   }
@@ -298,7 +377,6 @@ pub async fn verification_challenge_new(
     utils::hash_str(&verification_challenge_key),
     props.user_name,
     props.user_email,
-    utils::hash_password(&props.user_password).map_err(report_internal_err)?,
   )
   .await
   .map_err(report_postgres_err)?;
@@ -314,6 +392,13 @@ pub async fn user_new(
   props: request::UserNewProps,
 ) -> Result<response::User, response::AuthError> {
   let con = &mut *db.lock().await;
+
+
+
+  // server side validation of password strength
+  if !utils::is_secure_password(&props.user_password) {
+    return Err(response::AuthError::PasswordInsecure);
+  }
 
   let vckh = &utils::hash_str(&props.verification_challenge_key);
 
@@ -341,7 +426,8 @@ pub async fn user_new(
     return Err(response::AuthError::VerificationChallengeTimedOut);
   }
 
-  let vc_password_hash = vc.password_hash.clone();
+  let password_hash = utils::hash_password(&props.user_password).map_err(report_internal_err)?;
+
 
   let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 

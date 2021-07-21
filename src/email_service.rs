@@ -32,7 +32,11 @@ pub async fn add(
        VALUES($1, $2, $3)
        RETURNING email_id
       ",
-      &[&creation_time, &creator_user_id, &verification_challenge_key_hash],
+      &[
+        &creation_time,
+        &creator_user_id,
+        &verification_challenge_key_hash,
+      ],
     )
     .await?
     .get(0);
@@ -46,17 +50,34 @@ pub async fn add(
   })
 }
 
+#[allow(unused)]
 pub async fn get_by_email_id(
   con: &mut impl GenericClient,
   email_id: i64,
 ) -> Result<Option<Email>, tokio_postgres::Error> {
   let result = con
-    .query_opt(
-      "SELECT * FROM email_t WHERE email_id=$1",
-      &[&email_id],
-    )
+    .query_opt("SELECT * FROM email_t WHERE email_id=$1", &[&email_id])
     .await?
     .map(|row| row.into());
+
+  Ok(result)
+}
+
+// gets most recent email
+pub async fn get_by_email(
+  con: &mut impl GenericClient,
+  email: &str,
+) -> Result<Option<Email>, tokio_postgres::Error> {
+  let result = con
+    .query_opt(
+      "SELECT e.* FROM email_t e
+       INNER JOIN (SELECT max(email_id) id FROM email_t GROUP BY creator_user_id) maxids ON maxids.id = e.email_id
+       INNER JOIN verification_challenge vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash
+       WHERE vc.email = $1
+      ",
+      &[&email],
+    ).await?
+    .map(|x| x.into());
 
   Ok(result)
 }

@@ -61,6 +61,24 @@ pub async fn get_by_parent_permission_id(
   Ok(result)
 }
 
+// gets most recent by user id
+pub async fn get_by_user_id(
+  con: &mut impl GenericClient,
+  user_id: i64,
+) -> Result<Option<Email>, tokio_postgres::Error> {
+  let result = con
+    .query_opt(
+      "SELECT pp.* FROM parent_permission_t pp
+       INNER JOIN (SELECT max(parent_permission_id) id FROM parent_permission_t GROUP BY user_id) maxids ON maxids.id = pp.parent_permission_id
+       WHERE pp.user_id = $1
+      ",
+      &[&user_id],
+    ).await?
+    .map(|x| x.into());
+
+  Ok(result)
+}
+
 pub async fn query(
   con: &mut impl GenericClient,
   props: auth_service_api::request::ParentPermissionViewProps,

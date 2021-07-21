@@ -1,10 +1,10 @@
 #![feature(async_closure)]
-use std::error::Error;
-use warp::Filter;
 use clap::Clap;
-use tokio_postgres::{Client, NoTls};
+use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio_postgres::{Client, NoTls};
+use warp::Filter;
 
 use mail_service_api::client::MailService;
 
@@ -16,12 +16,12 @@ mod handlers;
 
 // database interface
 mod api_key_service;
-mod password_reset_service;
-mod password_service;
 mod email_service;
 mod parent_permission_service;
-mod user_service;
+mod password_reset_service;
+mod password_service;
 mod user_data_service;
+mod user_service;
 mod verification_challenge_service;
 
 static SERVICE_NAME: &str = "auth-service";
@@ -42,7 +42,7 @@ pub type Db = Arc<Mutex<Client>>;
 
 #[derive(Clone)]
 pub struct Config {
-    pub site_external_url:String,
+  pub site_external_url: String,
 }
 
 #[tokio::main]
@@ -86,9 +86,9 @@ async fn main() -> Result<(), tokio_postgres::Error> {
   let log = warp::log::custom(|info| {
     // Use a log macro, or slog, or println, or whatever!
     utils::log(utils::Event {
-        msg: info.method().to_string(),
-        source: Some(info.path().to_string()),
-        severity: utils::SeverityKind::Info,
+      msg: info.method().to_string(),
+      source: Some(info.path().to_string()),
+      severity: utils::SeverityKind::Info,
     });
   });
 
