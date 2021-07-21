@@ -66,7 +66,7 @@ pub async fn get_by_verification_challenge_key_hash(
   Ok(result)
 }
 
-pub async fn get_last_email_sent_time(
+pub async fn get_latest_email_time_for_address(
   con: &mut impl GenericClient,
   email: &str,
 ) -> Result<Option<i64>, tokio_postgres::Error> {
@@ -74,6 +74,20 @@ pub async fn get_last_email_sent_time(
     .query_one(
       "SELECT MAX(creation_time) FROM verification_challenge_t WHERE email=$1",
       &[&email],
+    ).await?
+    .get(0);
+
+  Ok(time)
+}
+
+pub async fn get_latest_time_for_creator(
+  con: &mut impl GenericClient,
+  creator_user_id: i64,
+) -> Result<Option<i64>, tokio_postgres::Error> {
+  let time = con
+    .query_one(
+      "SELECT MAX(creation_time) FROM verification_challenge_t WHERE creator_user_id=$1",
+      &[&creator_user_id],
     ).await?
     .get(0);
 

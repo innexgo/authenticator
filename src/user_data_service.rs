@@ -46,6 +46,24 @@ pub async fn add(
   })
 }
 
+// gets most recent user data by user_id
+pub async fn get_by_user_id(
+  con: &mut impl GenericClient,
+  user_id: i64,
+) -> Result<Option<UserData>, tokio_postgres::Error> {
+  let result = con
+    .query_opt(
+      "SELECT ud.* FROM user_data_t ud
+       INNER JOIN (SELECT max(user_data_id) id FROM user_data_t GROUP BY creator_user_id) maxids ON maxids.id = ud.user_data_id
+       WHERE ud.creator_user_id = $1
+      ",
+      &[&user_id],
+    ).await?
+    .map(|x| x.into());
+
+  Ok(result)
+}
+
 pub async fn get_by_user_data_id(
   con: &mut impl GenericClient,
   user_data_id: i64,

@@ -14,10 +14,8 @@ impl From<tokio_postgres::row::Row> for User {
 
 pub async fn add(
   con: &mut impl GenericClient,
-  v: VerificationChallenge,
 ) -> Result<User, tokio_postgres::Error> {
   let creation_time = current_time_millis();
-
   let user_id = con
     .query_one(
       "INSERT INTO

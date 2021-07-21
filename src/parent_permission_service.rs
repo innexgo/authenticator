@@ -61,6 +61,18 @@ pub async fn get_by_parent_permission_id(
   Ok(result)
 }
 
+pub async fn get_by_verification_challenge_key_hash(
+  con: &mut impl GenericClient,
+  verification_challenge_key_hash: &str,
+) -> Result<Option<ParentPermission>, tokio_postgres::Error> {
+  let result = con
+    .query_opt("SELECT * FROM parent_permission_t WHERE verification_challenge_key_hash=$1", &[&verification_challenge_key_hash])
+    .await?
+    .map(|row| row.into());
+
+  Ok(result)
+}
+
 // gets most recent by user id
 pub async fn get_by_user_id(
   con: &mut impl GenericClient,

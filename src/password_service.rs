@@ -1,7 +1,6 @@
 use super::db_types::*;
 use super::utils::current_time_millis;
 use tokio_postgres::GenericClient;
-use std::convert::TryInto;
 
 impl From<tokio_postgres::row::Row> for Password {
   // select * from password order only, otherwise it will fail

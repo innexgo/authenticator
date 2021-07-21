@@ -63,6 +63,18 @@ pub async fn get_by_email_id(
   Ok(result)
 }
 
+pub async fn get_by_verification_challenge_key_hash(
+  con: &mut impl GenericClient,
+  verification_challenge_key_hash: &str,
+) -> Result<Option<Email>, tokio_postgres::Error> {
+  let result = con
+    .query_opt("SELECT * FROM email_t WHERE verification_challenge_key_hash=$1", &[&verification_challenge_key_hash])
+    .await?
+    .map(|row| row.into());
+
+  Ok(result)
+}
+
 // gets most recent email
 pub async fn get_by_email(
   con: &mut impl GenericClient,
