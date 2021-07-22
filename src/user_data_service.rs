@@ -64,6 +64,7 @@ pub async fn get_by_user_id(
   Ok(result)
 }
 
+#[allow(unused)]
 pub async fn get_by_user_data_id(
   con: &mut impl GenericClient,
   user_data_id: i64,

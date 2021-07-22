@@ -20,7 +20,7 @@ pub async fn add(
     .query_one(
       "INSERT INTO
        user_t(
-        creation_time,
+        creation_time
        )
        VALUES($1)
        RETURNING user_id

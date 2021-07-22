@@ -32,7 +32,7 @@ pub async fn add(
          password_hash,
          password_reset_key_hash
        )
-       VALUES ($1, $2, $3, $4, $5)
+       VALUES ($1, $2, $3, $4)
        RETURNING password_id
       ",
       &[

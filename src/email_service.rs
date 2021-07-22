@@ -84,10 +84,27 @@ pub async fn get_by_email(
     .query_opt(
       "SELECT e.* FROM email_t e
        INNER JOIN (SELECT max(email_id) id FROM email_t GROUP BY creator_user_id) maxids ON maxids.id = e.email_id
-       INNER JOIN verification_challenge vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash
+       INNER JOIN verification_challenge_t vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash
        WHERE vc.email = $1
       ",
       &[&email],
+    ).await?
+    .map(|x| x.into());
+
+  Ok(result)
+}
+
+pub async fn get_by_user_id(
+  con: &mut impl GenericClient,
+  user_id: i64,
+) -> Result<Option<Email>, tokio_postgres::Error> {
+  let result = con
+    .query_opt(
+      "SELECT e.* FROM email_t e
+       INNER JOIN (SELECT max(email_id) id FROM email_t GROUP BY creator_user_id) maxids ON maxids.id = e.email_id
+       WHERE e.creator_user_id = $1
+      ",
+      &[&user_id],
     ).await?
     .map(|x| x.into());
 
@@ -106,7 +123,7 @@ pub async fn query(
     } else {
       ""
     },
-    " JOIN verification_challenge vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash",
+    " JOIN verification_challenge_t vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash",
     " AND ($1::bigint[] IS NULL OR e.email_id = ANY($1))",
     " AND ($2::bigint   IS NULL OR e.creation_time >= $2)",
     " AND ($3::bigint   IS NULL OR e.creation_time <= $3)",

@@ -77,7 +77,7 @@ pub async fn get_by_verification_challenge_key_hash(
 pub async fn get_by_user_id(
   con: &mut impl GenericClient,
   user_id: i64,
-) -> Result<Option<Email>, tokio_postgres::Error> {
+) -> Result<Option<ParentPermission>, tokio_postgres::Error> {
   let result = con
     .query_opt(
       "SELECT pp.* FROM parent_permission_t pp

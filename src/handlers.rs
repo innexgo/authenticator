@@ -213,7 +213,7 @@ async fn fill_verification_challenge(
   })
 }
 
-pub async fn get_api_key_if_valid(
+pub async fn get_api_key_if_valid_noverify(
   con: &mut tokio_postgres::Client,
   api_key: &str,
 ) -> Result<ApiKey, response::AuthError> {
@@ -225,6 +225,21 @@ pub async fn get_api_key_if_valid(
   if utils::current_time_millis() > creator_api_key.creation_time + creator_api_key.duration {
     return Err(response::AuthError::ApiKeyUnauthorized);
   }
+
+  Ok(creator_api_key)
+}
+
+pub async fn get_api_key_if_verified(
+  con: &mut tokio_postgres::Client,
+  api_key: &str,
+) -> Result<ApiKey, response::AuthError> {
+  let creator_api_key = get_api_key_if_valid_noverify(con, api_key).await?;
+
+  // ensure parent permission
+  let _ = parent_permission_service::get_by_user_id(con, creator_api_key.creator_user_id)
+    .await
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::ParentPermissionNonexistent)?;
 
   Ok(creator_api_key)
 }
@@ -285,9 +300,9 @@ pub async fn api_key_new_cancel(
   let con = &mut *db.lock().await;
 
   // validate api key
-  let creator_key = get_api_key_if_valid(con, &props.api_key).await?;
+  let creator_key = get_api_key_if_verified(con, &props.api_key).await?;
 
-  let to_cancel_key = get_api_key_if_valid(con, &props.api_key_to_cancel).await?;
+  let to_cancel_key = get_api_key_if_verified(con, &props.api_key_to_cancel).await?;
 
   if creator_key.creator_user_id != to_cancel_key.creator_user_id {
     return Err(response::AuthError::ApiKeyUnauthorized);
@@ -312,15 +327,87 @@ pub async fn api_key_new_cancel(
   fill_api_key(con, key_cancel, None).await
 }
 
+pub async fn send_parent_permission_email(
+  mail_service: &MailService,
+  target_email: &str,
+  user_name: &str,
+  site_external_url: &str,
+  verification_challenge_key: &str,
+) -> Result<(), response::AuthError> {
+  let _ = mail_service
+    .mail_new(mail_service_api::request::MailNewProps {
+      request_id: 0,
+      destination: target_email.to_owned(),
+      topic: "parent_permission".to_owned(),
+      title: format!("{}: Parent Permission For {}", site_external_url, user_name),
+      content: [
+        &format!(
+          "<p>Your child, <code>{}</code>, has requested permission to use: <code>{}</code></p>",
+          user_name, site_external_url
+        ),
+        "<p>If you did not make this request, then feel free to ignore.</p>",
+        "<p>This link is valid for up to 15 minutes.</p>",
+        "<p>Do not share this link with others.</p>",
+        &format!(
+          "<p>Verification link: {}/parent_confirm?verificationChallengeKey={}</p>",
+          site_external_url, verification_challenge_key
+        ),
+      ]
+      .join(""),
+    })
+    .await
+    .map_err(report_mail_err)?;
+
+  Ok(())
+}
+
+pub async fn send_email_verification_email(
+  mail_service: &MailService,
+  target_email: &str,
+  user_name: &str,
+  site_external_url: &str,
+  verification_challenge_key: &str,
+) -> Result<(), response::AuthError> {
+  let _ = mail_service
+    .mail_new(mail_service_api::request::MailNewProps {
+      request_id: 0,
+      destination: target_email.to_owned(),
+      topic: "verification_challenge".to_owned(),
+      title: format!("{}: Email Verification", site_external_url),
+      content: [
+        &format!(
+          "<p>This email has been sent to verify for: <code>{}</code> </p>",
+          &user_name
+        ),
+        "<p>If you did not make this request, then feel free to ignore.</p>",
+        "<p>This link is valid for up to 15 minutes.</p>",
+        "<p>Do not share this link with others.</p>",
+        &format!(
+          "<p>Verification link: {}/email_confirm?verificationChallengeKey={}</p>",
+          site_external_url, verification_challenge_key
+        ),
+      ]
+      .join(""),
+    })
+    .await
+    .map_err(report_mail_err)?;
+  Ok(())
+}
+
 pub async fn verification_challenge_new(
   config: Config,
   db: Db,
   mail_service: MailService,
   props: request::VerificationChallengeNewProps,
 ) -> Result<response::VerificationChallenge, response::AuthError> {
+  // avoid sending email to obviously bad addresses
+  if props.email.is_empty() {
+    return Err(response::AuthError::EmailBounced);
+  }
+
   let con = &mut *db.lock().await;
   // api key verification required
-  let api_key = get_api_key_if_valid(con, &props.api_key).await?;
+  let api_key = get_api_key_if_valid_noverify(con, &props.api_key).await?;
 
   // if to_parent, check that parental permission doesn't exist yet
   if props.to_parent
@@ -355,58 +442,24 @@ pub async fn verification_challenge_new(
   let verification_challenge_key = utils::gen_random_string();
 
   // send email depending on kind
-
   if props.to_parent {
-    let _ = mail_service
-      .mail_new(mail_service_api::request::MailNewProps {
-        request_id: 0,
-        destination: props.email.clone(),
-        topic: "parent_permission".to_owned(),
-        title: format!(
-          "{}: Parent Permission For {}",
-          &config.site_external_url, &user_data.name
-        ),
-        content: [
-          &format!(
-            "<p>Your child, <code>{}</code>, has requested permission to use: <code>{}</code></p>",
-            &user_data.name, &config.site_external_url
-          ),
-          "<p>If you did not make this request, then feel free to ignore.</p>",
-          "<p>This link is valid for up to 15 minutes.</p>",
-          "<p>Do not share this link with others.</p>",
-          &format!(
-            "<p>Verification link: {}/parent_confirm?verificationChallengeKey={}</p>",
-            &config.site_external_url, verification_challenge_key
-          ),
-        ]
-        .join(""),
-      })
-      .await
-      .map_err(report_mail_err)?;
+    send_parent_permission_email(
+      &mail_service,
+      &props.email,
+      &user_data.name,
+      &config.site_external_url,
+      &verification_challenge_key,
+    )
+    .await?;
   } else {
-    let _ = mail_service
-      .mail_new(mail_service_api::request::MailNewProps {
-        request_id: 0,
-        destination: props.email.clone(),
-        topic: "verification_challenge".to_owned(),
-        title: format!("{}: Email Verification", &config.site_external_url),
-        content: [
-          &format!(
-            "<p>This email has been sent to verify for: <code>{}</code> </p>",
-            &user_data.name
-          ),
-          "<p>If you did not make this request, then feel free to ignore.</p>",
-          "<p>This link is valid for up to 15 minutes.</p>",
-          "<p>Do not share this link with others.</p>",
-          &format!(
-            "<p>Verification link: {}/email_confirm?verificationChallengeKey={}</p>",
-            &config.site_external_url, verification_challenge_key
-          ),
-        ]
-        .join(""),
-      })
-      .await
-      .map_err(report_mail_err)?;
+    send_email_verification_email(
+      &mail_service,
+      &props.email,
+      &user_data.name,
+      &config.site_external_url,
+      &verification_challenge_key,
+    )
+    .await?;
   }
 
   // insert into database
@@ -425,19 +478,22 @@ pub async fn verification_challenge_new(
 }
 
 pub async fn user_new(
-  _config: Config,
+  config: Config,
   db: Db,
-  _mail_service: MailService,
+  mail_service: MailService,
   props: request::UserNewProps,
 ) -> Result<response::UserData, response::AuthError> {
+  // name isn't empty
+  if props.user_name.is_empty() {
+    return Err(response::AuthError::UserNameEmpty);
+  }
+
   // server side validation of password strength
   if !utils::is_secure_password(&props.user_password) {
     return Err(response::AuthError::PasswordInsecure);
   }
 
-
   let con = &mut *db.lock().await;
-
 
   let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
@@ -457,6 +513,61 @@ pub async fn user_new(
     .await
     .map_err(report_postgres_err)?;
 
+  // create email request
+  let verification_challenge_key = utils::gen_random_string();
+
+  send_email_verification_email(
+    &mail_service,
+    &props.user_email,
+    &user_data.name,
+    &config.site_external_url,
+    &verification_challenge_key,
+  )
+  .await?;
+
+  // insert into database
+  verification_challenge_service::add(
+    &mut sp,
+    utils::hash_str(&verification_challenge_key),
+    props.user_email,
+    user.user_id,
+    false,
+  )
+  .await
+  .map_err(report_postgres_err)?;
+
+  // if it was indicated that the user is under than 13, send a parental permission
+  if let Some(parent_email) = props.parent_email {
+    // add new verification challenge for parent
+    let verification_challenge_key = utils::gen_random_string();
+
+    // create email request
+    send_parent_permission_email(
+      &mail_service,
+      &parent_email,
+      &user_data.name,
+      &config.site_external_url,
+      &verification_challenge_key,
+    )
+    .await?;
+
+    // insert into database
+    verification_challenge_service::add(
+      &mut sp,
+      utils::hash_str(&verification_challenge_key),
+      parent_email,
+      user.user_id,
+      true,
+    )
+    .await
+    .map_err(report_postgres_err)?;
+  } else {
+    // the user says they are over 13
+    parent_permission_service::add(&mut sp, user.user_id, None)
+      .await
+      .map_err(report_postgres_err)?;
+  }
+
   sp.commit().await.map_err(report_postgres_err)?;
 
   // return filled struct
@@ -471,8 +582,8 @@ pub async fn user_data_new(
 ) -> Result<response::UserData, response::AuthError> {
   let con = &mut *db.lock().await;
 
-  // api key verification required
-  let creator_key = get_api_key_if_valid(con, &props.api_key).await?;
+  // api key verification required (email or parent permission not needed)
+  let creator_key = get_api_key_if_valid_noverify(con, &props.api_key).await?;
 
   // create key data
   let user_data = user_data_service::add(con, creator_key.creator_user_id, props.user_name)
@@ -695,8 +806,8 @@ pub async fn password_new_change(
 ) -> Result<response::Password, response::AuthError> {
   let con = &mut *db.lock().await;
 
-  // api key verification required
-  let creator_key = get_api_key_if_valid(con, &props.api_key).await?;
+  // api key verification required (no parent permission needed tho)
+  let creator_key = get_api_key_if_valid_noverify(con, &props.api_key).await?;
 
   // reject insecure passwords
   if !utils::is_secure_password(&props.new_password) {
@@ -732,7 +843,7 @@ pub async fn user_view(
 ) -> Result<Vec<response::User>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, &props.api_key).await?;
+  let _ = get_api_key_if_valid_noverify(con, &props.api_key).await?;
   // get users
   let users = user_service::query(con, props)
     .await
@@ -754,7 +865,7 @@ pub async fn user_data_view(
 ) -> Result<Vec<response::UserData>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, &props.api_key).await?;
+  let _ = get_api_key_if_valid_noverify(con, &props.api_key).await?;
   // get user_datas
   let user_datas = user_data_service::query(con, props)
     .await
@@ -776,7 +887,7 @@ pub async fn email_view(
 ) -> Result<Vec<response::Email>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, &props.api_key).await?;
+  let _ = get_api_key_if_valid_noverify(con, &props.api_key).await?;
   // get emails
   let emails = email_service::query(con, props)
     .await
@@ -799,7 +910,7 @@ pub async fn password_view(
 ) -> Result<Vec<response::Password>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, &props.api_key).await?;
+  let _ = get_api_key_if_valid_noverify(con, &props.api_key).await?;
   // get passwords
   let passwords = password_service::query(con, props)
     .await
@@ -822,7 +933,7 @@ pub async fn parent_permission_view(
 ) -> Result<Vec<response::ParentPermission>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, &props.api_key).await?;
+  let _ = get_api_key_if_valid_noverify(con, &props.api_key).await?;
   // get parent_permissions
   let parent_permissions = parent_permission_service::query(con, props)
     .await
@@ -844,7 +955,7 @@ pub async fn verification_challenge_view(
 ) -> Result<Vec<response::VerificationChallenge>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, &props.api_key).await?;
+  let _ = get_api_key_if_valid_noverify(con, &props.api_key).await?;
   // get verification_challenges
   let verification_challenges = verification_challenge_service::query(con, props)
     .await
@@ -866,7 +977,7 @@ pub async fn api_key_view(
 ) -> Result<Vec<response::ApiKey>, response::AuthError> {
   let con = &mut *db.lock().await;
   // api key verification required
-  let _ = get_api_key_if_valid(con, &props.api_key).await?;
+  let _ = get_api_key_if_valid_noverify(con, &props.api_key).await?;
   // get users
   let api_keys = api_key_service::query(con, props)
     .await
@@ -906,7 +1017,7 @@ pub async fn get_user_by_api_key_if_valid(
 ) -> Result<response::User, response::AuthError> {
   let con = &mut *db.lock().await;
 
-  let api_key = get_api_key_if_valid(con, &props.api_key).await?;
+  let api_key = get_api_key_if_verified(con, &props.api_key).await?;
 
   let user = user_service::get_by_user_id(con, api_key.creator_user_id)
     .await

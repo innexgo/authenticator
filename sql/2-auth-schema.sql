@@ -10,7 +10,7 @@ CREATE DATABASE auth;
 drop table if exists user_t;
 create table user_t(
   user_id bigserial primary key,
-  creation_time bigint not null,
+  creation_time bigint not null
 );
 
 drop table if exists user_data_t;
@@ -18,7 +18,6 @@ create table user_data_t(
   user_data_id bigserial primary key,
   creation_time bigint not null,
   creator_user_id bigint not null,
-  user_id bigint not null,
   name text not null
 );
 
@@ -32,15 +31,15 @@ create table verification_challenge_t(
 );
 
 drop table if exists email_t;
-create table if exists email_t(
+create table email_t(
   email_id bigserial primary key,
   creation_time bigint not null,
-  user_id bigint not null,
+  creator_user_id bigint not null,
   verification_challenge_key_hash text not null
 );
 
 drop table if exists parent_permission_t;
-create table if exists parent_permission_t(
+create table parent_permission_t(
   parent_permission_id bigserial primary key,
   creation_time bigint not null,
   user_id bigint not null,
