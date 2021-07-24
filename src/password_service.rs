@@ -114,7 +114,7 @@ pub async fn query(
     " AND ($2::bigint   IS NULL OR p.creation_time >= $2)",
     " AND ($3::bigint   IS NULL OR p.creation_time <= $3)",
     " AND ($4::bigint[] IS NULL OR p.creator_user_id = $4)",
-    " AND ($5::boolean  IS NULL OR p.password_reset_key_hash IS NOT NULL = $5)",
+    " AND ($5::bool     IS NULL OR p.password_reset_key_hash IS NOT NULL = $5)",
     " ORDER BY p.password_id",
   ]
   .join("");

@@ -26,7 +26,7 @@ create table verification_challenge_t(
   verification_challenge_key_hash varchar(64) not null primary key,
   creation_time bigint not null,
   creator_user_id bigint not null,
-  to_parent boolean not null,
+  to_parent bool not null,
   email text not null
 );
 

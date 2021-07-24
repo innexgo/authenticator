@@ -108,7 +108,7 @@ pub async fn query(
     " AND ($2::bigint   IS NULL OR pp.creation_time >= $2)",
     " AND ($3::bigint   IS NULL OR pp.creation_time <= $3)",
     " AND ($4::bigint[] IS NULL OR pp.user_id = ANY($4))",
-    " AND ($5::boolean  IS NULL OR pp.verification_challenge_key_hash IS NOT NULL = $5)",
+    " AND ($5::bool     IS NULL OR pp.verification_challenge_key_hash IS NOT NULL = $5)",
     " AND ($6::text[]   IS NULL OR vc.email = ANY($6))",
     " ORDER BY pp.parent_permission_id",
   ]
