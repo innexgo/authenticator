@@ -66,36 +66,27 @@ async fn fill_user(
 }
 
 async fn fill_user_data(
-  con: &mut tokio_postgres::Client,
+  _con: &mut tokio_postgres::Client,
   user_data: UserData,
 ) -> Result<response::UserData, response::AuthError> {
-  let creator = user_service::get_by_user_id(con, user_data.creator_user_id)
-    .await
-    .map_err(report_postgres_err)?
-    .ok_or(response::AuthError::UserNonexistent)?;
-
   Ok(response::UserData {
     user_data_id: user_data.user_data_id,
     creation_time: user_data.creation_time,
-    creator: fill_user(con, creator).await?,
+    creator_user_id: user_data.creator_user_id,
     name: user_data.name,
   })
 }
 
 async fn fill_api_key(
-  con: &mut tokio_postgres::Client,
+  _con: &mut tokio_postgres::Client,
   api_key: ApiKey,
   key: Option<String>,
 ) -> Result<response::ApiKey, response::AuthError> {
-  let creator = user_service::get_by_user_id(con, api_key.creator_user_id)
-    .await
-    .map_err(report_postgres_err)?
-    .ok_or(response::AuthError::UserNonexistent)?;
 
   Ok(response::ApiKey {
     api_key_id: api_key.api_key_id,
     creation_time: api_key.creation_time,
-    creator: fill_user(con, creator).await?,
+    creator_user_id: api_key.creator_user_id,
     api_key_data: match api_key.api_key_kind {
       request::ApiKeyKind::Valid => response::ApiKeyData::Valid {
         duration: api_key.duration,
@@ -110,10 +101,6 @@ async fn fill_email(
   con: &mut tokio_postgres::Client,
   email: Email,
 ) -> Result<response::Email, response::AuthError> {
-  let creator = user_service::get_by_user_id(con, email.creator_user_id)
-    .await
-    .map_err(report_postgres_err)?
-    .ok_or(response::AuthError::UserNonexistent)?;
 
   let verification_challenge =
     verification_challenge_service::get_by_verification_challenge_key_hash(
@@ -127,7 +114,7 @@ async fn fill_email(
   Ok(response::Email {
     email_id: email.email_id,
     creation_time: email.creation_time,
-    creator: fill_user(con, creator).await?,
+    creator_user_id: email.creator_user_id,
     verification_challenge: fill_verification_challenge(con, verification_challenge).await?,
   })
 }
@@ -136,10 +123,6 @@ async fn fill_parent_permission(
   con: &mut tokio_postgres::Client,
   parent_permission: ParentPermission,
 ) -> Result<response::ParentPermission, response::AuthError> {
-  let user = user_service::get_by_user_id(con, parent_permission.user_id)
-    .await
-    .map_err(report_postgres_err)?
-    .ok_or(response::AuthError::UserNonexistent)?;
 
   let verification_challenge = match parent_permission.verification_challenge_key_hash {
     Some(verification_challenge_key_hash) => {
@@ -159,7 +142,7 @@ async fn fill_parent_permission(
   Ok(response::ParentPermission {
     parent_permission_id: parent_permission.parent_permission_id,
     creation_time: parent_permission.creation_time,
-    user: fill_user(con, user).await?,
+    user_id: parent_permission.user_id,
     verification_challenge,
   })
 }
@@ -168,10 +151,6 @@ async fn fill_password(
   con: &mut tokio_postgres::Client,
   password: Password,
 ) -> Result<response::Password, response::AuthError> {
-  let creator = user_service::get_by_user_id(con, password.creator_user_id)
-    .await
-    .map_err(report_postgres_err)?
-    .ok_or(response::AuthError::UserNonexistent)?;
 
   let password_reset = match password.password_reset_key_hash {
     Some(password_reset_key_hash) => {
@@ -188,7 +167,7 @@ async fn fill_password(
   Ok(response::Password {
     password_id: password.password_id,
     creation_time: password.creation_time,
-    creator: fill_user(con, creator).await?,
+    creator_user_id: password.creator_user_id,
     password_reset,
   })
 }
