@@ -69,7 +69,7 @@ pub async fn get_by_api_key_hash(
 ) -> Result<Option<ApiKey>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT * FROM api_key_t WHERE api_key_hash=$1",
+      "SELECT * FROM recent_api_key_v WHERE api_key_hash=$1",
       &[&api_key_hash],
     ).await?
     .map(|x| x.into());
@@ -84,21 +84,20 @@ pub async fn query(
   // TODO prevent getting meaningless duration
 
   let sql = [
-    "SELECT a.* FROM api_key_t a",
     if props.only_recent {
-        " INNER JOIN (SELECT max(api_key_id) id FROM api_key_t GROUP BY api_key_hash) maxids ON maxids.id = a.api_key_id"
+        "SELECT ak.* FROM recent_api_key_v ak"
     } else {
-        ""
+        "SELECT ak.* FROM api_key_t ak"
     },
     " WHERE 1 = 1",
-    " AND ($1::bigint[] IS NULL OR a.api_key_id IN $1)",
-    " AND ($2::bigint   IS NULL OR a.creation_time >= $2)",
-    " AND ($3::bigint   IS NULL OR a.creation_time <= $3)",
-    " AND ($4::bigint[] IS NULL OR a.creator_user_id IN $4)",
-    " AND ($5::bigint   IS NULL OR a.duration >= $5)",
-    " AND ($6::bigint   IS NULL OR a.duration <= $6)",
-    " AND ($7::bigint   IS NULL OR a.api_key_kind = $7)",
-    " ORDER BY a.api_key_id",
+    " AND ($1::bigint[] IS NULL OR ak.api_key_id IN $1)",
+    " AND ($2::bigint   IS NULL OR ak.creation_time >= $2)",
+    " AND ($3::bigint   IS NULL OR ak.creation_time <= $3)",
+    " AND ($4::bigint[] IS NULL OR ak.creator_user_id IN $4)",
+    " AND ($5::bigint   IS NULL OR ak.duration >= $5)",
+    " AND ($6::bigint   IS NULL OR ak.duration <= $6)",
+    " AND ($7::bigint   IS NULL OR ak.api_key_kind = $7)",
+    " ORDER BY ak.api_key_id",
   ]
   .join("");
 

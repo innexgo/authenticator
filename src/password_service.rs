@@ -60,8 +60,7 @@ pub async fn get_by_user_id(
 ) -> Result<Option<Password>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT p.* FROM password_t p
-       INNER JOIN (SELECT max(password_id) id FROM password_t GROUP BY creator_user_id) maxids ON maxids.id = p.password_id
+      "SELECT p.* FROM recent_password_v p
        WHERE p.creator_user_id = $1
       ",
       &[&user_id],
@@ -103,12 +102,10 @@ pub async fn query(
   props: auth_service_api::request::PasswordViewProps,
 ) -> Result<Vec<Password>, tokio_postgres::Error> {
   let sql = [
-
-    "SELECT p.* FROM password_t p",
     if props.only_recent {
-        " INNER JOIN (SELECT max(password_id) id FROM password_t GROUP BY creator_user_id) maxids ON maxids.id = p.password_id"
+        "SELECT p.* FROM recent_password_v p"
     } else {
-        ""
+        "SELECT p.* FROM password_t p"
     },
     " AND ($1::bigint[] IS NULL OR p.password_id = $1)",
     " AND ($2::bigint   IS NULL OR p.creation_time >= $2)",

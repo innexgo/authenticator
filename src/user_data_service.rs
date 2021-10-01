@@ -53,8 +53,7 @@ pub async fn get_by_user_id(
 ) -> Result<Option<UserData>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT ud.* FROM user_data_t ud
-       INNER JOIN (SELECT max(user_data_id) id FROM user_data_t GROUP BY creator_user_id) maxids ON maxids.id = ud.user_data_id
+      "SELECT ud.* FROM recent_user_data_v ud
        WHERE ud.creator_user_id = $1
       ",
       &[&user_id],
@@ -85,12 +84,10 @@ pub async fn query(
   props: auth_service_api::request::UserDataViewProps,
 ) -> Result<Vec<UserData>, tokio_postgres::Error> {
   let sql = [
-    "SELECT ud.* FROM user_data_t ud",
     if props.only_recent {
-      " INNER JOIN (SELECT max(user_data_id) id FROM user_data_t GROUP BY creator_user_id) maxids
-        ON maxids.id = ud.user_data_id"
+      "SELECT ud.* FROM recent_user_data_v ud"
     } else {
-      ""
+      "SELECT ud.* FROM user_data_t ud"
     },
     " AND ($1::bigint[] IS NULL OR ud.user_data_id = ANY($1))",
     " AND ($2::bigint   IS NULL OR ud.creation_time >= $2)",

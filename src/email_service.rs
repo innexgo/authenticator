@@ -82,8 +82,7 @@ pub async fn get_by_email(
 ) -> Result<Option<Email>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT e.* FROM email_t e
-       INNER JOIN (SELECT max(email_id) id FROM email_t GROUP BY creator_user_id) maxids ON maxids.id = e.email_id
+      "SELECT e.* FROM recent_email_v e
        INNER JOIN verification_challenge_t vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash
        WHERE vc.email = $1
       ",
@@ -100,8 +99,7 @@ pub async fn get_by_user_id(
 ) -> Result<Option<Email>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT e.* FROM email_t e
-       INNER JOIN (SELECT max(email_id) id FROM email_t GROUP BY creator_user_id) maxids ON maxids.id = e.email_id
+      "SELECT e.* FROM recent_email_v e
        WHERE e.creator_user_id = $1
       ",
       &[&user_id],
@@ -116,12 +114,10 @@ pub async fn query(
   props: auth_service_api::request::EmailViewProps,
 ) -> Result<Vec<Email>, tokio_postgres::Error> {
   let sql = [
-    "SELECT e.* FROM email_t e",
     if props.only_recent {
-      " INNER JOIN (SELECT max(email_id) id FROM email_t GROUP BY creator_user_id) maxids
-        ON maxids.id = e.email_id"
+      "SELECT e.* FROM recent_email_v e"
     } else {
-      ""
+      "SELECT e.* FROM email_t e"
     },
     " JOIN verification_challenge_t vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash",
     " AND ($1::bigint[] IS NULL OR e.email_id = ANY($1))",

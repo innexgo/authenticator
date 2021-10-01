@@ -66,7 +66,7 @@ pub async fn get_by_verification_challenge_key_hash(
   verification_challenge_key_hash: &str,
 ) -> Result<Option<ParentPermission>, tokio_postgres::Error> {
   let result = con
-    .query_opt("SELECT * FROM parent_permission_t WHERE verification_challenge_key_hash=$1", &[&verification_challenge_key_hash])
+    .query_opt("SELECT * FROM recent_parent_permission_v WHERE verification_challenge_key_hash=$1", &[&verification_challenge_key_hash])
     .await?
     .map(|row| row.into());
 
@@ -80,8 +80,7 @@ pub async fn get_by_user_id(
 ) -> Result<Option<ParentPermission>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT pp.* FROM parent_permission_t pp
-       INNER JOIN (SELECT max(parent_permission_id) id FROM parent_permission_t GROUP BY user_id) maxids ON maxids.id = pp.parent_permission_id
+      "SELECT pp.* FROM recent_parent_permission_v pp
        WHERE pp.user_id = $1
       ",
       &[&user_id],
@@ -96,12 +95,10 @@ pub async fn query(
   props: auth_service_api::request::ParentPermissionViewProps,
 ) -> Result<Vec<ParentPermission>, tokio_postgres::Error> {
   let sql = [
-    "SELECT pp.* FROM parent_permission_t pp",
     if props.only_recent {
-      " INNER JOIN (SELECT max(parent_permission_id) id FROM parent_permission_t GROUP BY user_id) maxids
-        ON maxids.id = e.parent_permission_id"
+      "SELECT pp.* FROM recent_parent_permission_v pp"
     } else {
-      ""
+      "SELECT pp.* FROM parent_permission_t pp"
     },
     " JOIN verification_challenge vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash",
     " AND ($1::bigint[] IS NULL OR pp.parent_permission_id = ANY($1))",
