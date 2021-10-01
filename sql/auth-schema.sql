@@ -7,17 +7,17 @@
 CREATE DATABASE auth;
 \c auth;
 
-drop table if exists user_t;
+drop table if exists user_t cascade;
 create table user_t(
   user_id bigserial primary key,
   creation_time bigint not null
 );
 
-drop table if exists user_data_t;
+drop table if exists user_data_t cascade;
 create table user_data_t(
   user_data_id bigserial primary key,
   creation_time bigint not null,
-  creator_user_id bigint not null,
+  creator_user_id bigint not null references user_t(user_id),
   name text not null
 );
 
@@ -31,21 +31,21 @@ create view recent_user_data_v as
   on maxids.id = ud.user_data_id;
 
 
-drop table if exists verification_challenge_t;
+drop table if exists verification_challenge_t cascade;
 create table verification_challenge_t(
-  verification_challenge_key_hash varchar(64) not null primary key,
+  verification_challenge_key_hash text not null primary key,
   creation_time bigint not null,
-  creator_user_id bigint not null,
+  creator_user_id bigint not null references user_t(user_id),
   to_parent bool not null,
   email text not null
 );
 
-drop table if exists email_t;
+drop table if exists email_t cascade;
 create table email_t(
   email_id bigserial primary key,
   creation_time bigint not null,
-  creator_user_id bigint not null,
-  verification_challenge_key_hash text not null
+  creator_user_id bigint not null references user_t(user_id),
+  verification_challenge_key_hash text not null references verification_challenge_t(verification_challenge_key_hash)
 );
 
 create view recent_email_v as
@@ -58,13 +58,13 @@ create view recent_email_v as
   on maxids.id = e.email_id;
 
 
-drop table if exists parent_permission_t;
+drop table if exists parent_permission_t cascade;
 create table parent_permission_t(
   parent_permission_id bigserial primary key,
   creation_time bigint not null,
-  user_id bigint not null,
+  user_id bigint not null references user_t(user_id),
   -- INVARIANT: if email_verification_challege field is null, then user has self authorized
-  verification_challenge_key_hash text -- NULLABLE
+  verification_challenge_key_hash text references verification_challenge_t(verification_challenge_key_hash)  -- NULLABLE
 );
 
 create view recent_parent_permission_v as
@@ -78,18 +78,18 @@ create view recent_parent_permission_v as
 
 drop table if exists password_reset_t;
 create table password_reset_t(
-  password_reset_key_hash varchar(64) not null primary key,
+  password_reset_key_hash text not null primary key,
   creation_time bigint not null,
-  creator_user_id bigint not null
+  creator_user_id bigint not null references user_t(user_id)
 );
 
-drop table if exists password_t;
+drop table if exists password_t cascade;
 create table password_t(
   password_id bigserial primary key,
   creation_time bigint not null,
-  creator_user_id bigint not null,
-  password_hash varchar(128) not null,
-  password_reset_key_hash varchar(64) -- only valid if change was made by RESET
+  creator_user_id bigint not null references user_t(user_id),
+  password_hash text not null,
+  password_reset_key_hash text references password_reset_t(password_reset_key_hash)  -- only valid if change was made by RESET
 );
 
 create view recent_password_v as
@@ -102,12 +102,12 @@ create view recent_password_v as
   on maxids.id = p.password_id;
 
 
-drop table if exists api_key_t;
+drop table if exists api_key_t cascade;
 create table api_key_t(
   api_key_id bigserial primary key,
   creation_time bigint not null,
-  creator_user_id bigint not null,
-  api_key_hash varchar(64) not null,
+  creator_user_id bigint not null references user_t(user_id),
+  api_key_hash text not null,
   api_key_kind bigint not null, -- VALID, CANCEL
   duration bigint not null -- only valid if api_key_kind == VALID
 );
@@ -115,9 +115,9 @@ create table api_key_t(
 create view recent_api_key_v as
   select ak.* from api_key_t ak
   inner join (
-   select max(api_key_id) id 
-   from api_key_t 
-   group by api_key_hash
+    select max(api_key_id) id 
+    from api_key_t 
+    group by api_key_hash
   ) maxids
-  on maxids.id = p.api_key_id;
+  on maxids.id = ak.api_key_id;
 

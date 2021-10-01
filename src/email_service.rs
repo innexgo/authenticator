@@ -120,6 +120,7 @@ pub async fn query(
       "SELECT e.* FROM email_t e"
     },
     " JOIN verification_challenge_t vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash",
+    " WHERE 1 = 1",
     " AND ($1::bigint[] IS NULL OR e.email_id = ANY($1))",
     " AND ($2::bigint   IS NULL OR e.creation_time >= $2)",
     " AND ($3::bigint   IS NULL OR e.creation_time <= $3)",

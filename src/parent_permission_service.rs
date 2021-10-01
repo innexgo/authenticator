@@ -101,6 +101,7 @@ pub async fn query(
       "SELECT pp.* FROM parent_permission_t pp"
     },
     " JOIN verification_challenge vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash",
+    " WHERE 1 = 1",
     " AND ($1::bigint[] IS NULL OR pp.parent_permission_id = ANY($1))",
     " AND ($2::bigint   IS NULL OR pp.creation_time >= $2)",
     " AND ($3::bigint   IS NULL OR pp.creation_time <= $3)",

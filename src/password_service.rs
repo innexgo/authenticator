@@ -107,6 +107,7 @@ pub async fn query(
     } else {
         "SELECT p.* FROM password_t p"
     },
+    " WHERE 1 = 1",
     " AND ($1::bigint[] IS NULL OR p.password_id = $1)",
     " AND ($2::bigint   IS NULL OR p.creation_time >= $2)",
     " AND ($3::bigint   IS NULL OR p.creation_time <= $3)",

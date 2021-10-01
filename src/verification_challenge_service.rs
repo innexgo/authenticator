@@ -101,7 +101,8 @@ pub async fn query(
 ) -> Result<Vec<VerificationChallenge>, tokio_postgres::Error> {
   let results = con
     .query(
-      "SELECT vc.* FROM verification_challenge_t vc WHERE 1 = 1
+      "SELECT vc.* FROM verification_challenge_t vc
+       WHERE 1 = 1
        AND ($1::bigint   IS NULL OR vc.creation_time >= $1)
        AND ($2::bigint   IS NULL OR vc.creation_time <= $2)
        AND ($3::bigint[] IS NULL OR vc.creator_user_id = ANY($3))

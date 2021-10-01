@@ -89,6 +89,7 @@ pub async fn query(
     } else {
       "SELECT ud.* FROM user_data_t ud"
     },
+    " WHERE 1 = 1",
     " AND ($1::bigint[] IS NULL OR ud.user_data_id = ANY($1))",
     " AND ($2::bigint   IS NULL OR ud.creation_time >= $2)",
     " AND ($3::bigint   IS NULL OR ud.creation_time <= $3)",
