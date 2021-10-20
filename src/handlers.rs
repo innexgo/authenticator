@@ -328,7 +328,7 @@ pub async fn send_parent_permission_email(
         "<p>This link is valid for up to 15 minutes.</p>",
         "<p>Do not share this link with others.</p>",
         &format!(
-          "<p>Verification link: {}/parent_confirm?verificationChallengeKey={}</p>",
+          "<p>Verification link: {}/parent_permission_confirm?verificationChallengeKey={}</p>",
           site_external_url, verification_challenge_key
         ),
       ]

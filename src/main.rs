@@ -1,5 +1,5 @@
 #![feature(async_closure)]
-use clap::Clap;
+use clap::Parser;
 use std::error::Error;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -26,7 +26,7 @@ mod verification_challenge_service;
 
 static SERVICE_NAME: &str = "auth-service";
 
-#[derive(Clap, Clone)]
+#[derive(Parser, Clone)]
 struct Opts {
   #[clap(short, long)]
   port: u16,
