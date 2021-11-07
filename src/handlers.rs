@@ -241,7 +241,7 @@ pub async fn api_key_new_valid(
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::PasswordNonexistent)?;
 
-  // validate password with bcrypt
+  // validate password with argon2 (password hashing algorithm)
   if !utils::verify_password(&props.user_password, &password.password_hash)
     .map_err(report_internal_err)?
   {

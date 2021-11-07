@@ -173,7 +173,7 @@ fn api_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection
   let mut info = HashMap::new();
   info.insert("version", "0.1");
   info.insert("name", SERVICE_NAME);
-  warp::path!("info").map(move || warp::reply::json(&info))
+  warp::path!("public" / "info").map(move || warp::reply::json(&info))
 }
 
 // this function adapts a handler function to a warp filter
