@@ -11,11 +11,11 @@ tokio-postgres = "0.7.5"
 rust-argon2 = "0.8.3"
 sha2 = "0.9.8"
 reqwest = { version = "0.11.6", features = ["json"] }
-warp = "0.3.1"
+warp = "0.3.2"
 clap = "3.0.0-beta.5"
-tokio = { version = "1.13.0", features = ["full"] }
+tokio = { version = "1.14.0", features = ["full"] }
 serde = { version = "1.0.130", features = ["derive"] }
-serde_json = "1.0.69"
+serde_json = "1.0.72"
 auth-service-api = {version = "*", git = "https://github.com/innexgo/auth-service-api" }
 mail-service-api = {version = "*", git = "https://github.com/innexgo/mail-service-api", features=["client"]}
 base64-url = "1.4.10"
