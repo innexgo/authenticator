@@ -27,6 +27,7 @@ mod verification_challenge_service;
 static SERVICE_NAME: &str = "auth-service";
 
 #[derive(Parser, Clone)]
+#[clap(about, version, author)]
 struct Opts {
   #[clap(short, long)]
   port: u16,
