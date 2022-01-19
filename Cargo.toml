@@ -8,14 +8,14 @@ edition = "2018"
 [dependencies]
 rand = "0.8.4"
 tokio-postgres = "0.7.5"
-rust-argon2 = "0.8.3"
-sha2 = "0.10.0"
-reqwest = { version = "0.11.7", features = ["json"] }
+rust-argon2 = "1.0.0"
+sha2 = "0.10.1"
+reqwest = { version = "0.11.9", features = ["json"] }
 warp = "0.3.2"
-clap = { version = "3.0.0-rc.4", features=["derive"]}
-tokio = { version = "1.14.0", features = ["full"] }
-serde = { version = "1.0.131", features = ["derive"] }
-serde_json = "1.0.73"
+clap = { version = "3.0.9", features = ["derive"] }
+tokio = { version = "1.15.0", features = ["full"] }
+serde = { version = "1.0.133", features = ["derive"] }
+serde_json = "1.0.75"
 auth-service-api = {version = "*", git = "https://github.com/innexgo/auth-service-api" }
 mail-service-api = {version = "*", git = "https://github.com/innexgo/mail-service-api", features=["client"]}
 base64-url = "1.4.10"
