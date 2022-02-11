@@ -185,17 +185,9 @@ pub async fn get_api_key_if_verified(
 ) -> Result<ApiKey, response::AuthError> {
   let creator_api_key = get_api_key_if_valid_noverify(con, api_key).await?;
 
-  // check if has email yet
-  let _ = email_service::get_own_by_user_id(con, creator_api_key.creator_user_id)
-    .await
-    .map_err(report_postgres_err)?
-    .ok_or(response::AuthError::ApiKeyUnauthorized)?;
-
-  // check if has parent permission yet
-  let _ = email_service::get_parent_by_user_id(con, creator_api_key.creator_user_id)
-    .await
-    .map_err(report_postgres_err)?
-    .ok_or(response::AuthError::ApiKeyUnauthorized)?;
+  if !creator_api_key.verified {
+    return Err(response::AuthError::ApiKeyUnauthorized);
+  }
 
   Ok(creator_api_key)
 }
@@ -274,7 +266,33 @@ pub async fn internal_api_key_new_valid(
     return Err(response::AuthError::PasswordIncorrect);
   }
 
-  // TODO verify parental permission here
+  let verified = {
+    // check if has email yet
+    let own_verified = email_service::get_own_by_user_id(con, user_id)
+      .await
+      .map_err(report_postgres_err)?
+      .is_some();
+
+    let userdata = user_data_service::get_by_user_id(con, user_id)
+      .await
+      .map_err(report_postgres_err)?
+      .ok_or(response::AuthError::UserNonexistent)?;
+
+    // check if has parent permission yet
+    let parent_verified =
+      if userdata.dateofbirth > utils::current_time_millis() - THIRTEEN_YEARS as i64 {
+        // if we're younger than the cutoff, we have to have an email
+        email_service::get_parent_by_user_id(con, user_id)
+          .await
+          .map_err(report_postgres_err)?
+          .is_some()
+      } else {
+        true
+      };
+
+      // own email must be verified and parent's email too
+      own_verified && parent_verified
+  };
 
   let raw_api_key = utils::gen_random_string();
 
@@ -287,6 +305,7 @@ pub async fn internal_api_key_new_valid(
     utils::hash_str(&raw_api_key),
     request::ApiKeyKind::Valid,
     duration,
+    verified,
   )
   .await
   .map_err(report_postgres_err)?;
@@ -322,6 +341,7 @@ pub async fn api_key_new_cancel(
     to_cancel_key.api_key_hash,
     request::ApiKeyKind::Cancel,
     0,
+    to_cancel_key.verified,
   )
   .await
   .map_err(report_postgres_err)?;
@@ -474,9 +494,9 @@ pub async fn verification_challenge_new(
 }
 
 pub async fn user_new(
-  config: Config,
+  _config: Config,
   db: Db,
-  mail_service: MailService,
+  _mail_service: MailService,
   props: request::UserNewProps,
 ) -> Result<response::UserData, response::AuthError> {
   // realname isn't empty
@@ -800,7 +820,7 @@ pub async fn user_data_view(
   Ok(resp_user_datas)
 }
 
-pub async fn email_own_view(
+pub async fn email_view(
   _config: Config,
   db: Db,
   _mail_service: MailService,
@@ -844,28 +864,6 @@ pub async fn password_view(
   }
 
   Ok(resp_passwords)
-}
-
-pub async fn verification_challenge_view(
-  _config: Config,
-  db: Db,
-  _mail_service: MailService,
-  props: request::VerificationChallengeViewProps,
-) -> Result<Vec<response::VerificationChallenge>, response::AuthError> {
-  let con = &mut *db.lock().await;
-  // api key verification required
-  let _ = get_api_key_if_valid_noverify(con, &props.api_key).await?;
-  // get verification_challenges
-  let verification_challenges = verification_challenge_service::query(con, props)
-    .await
-    .map_err(report_postgres_err)?;
-
-  let mut resp_verification_challenges = vec![];
-  for u in verification_challenges.into_iter() {
-    resp_verification_challenges.push(fill_verification_challenge(con, u).await?);
-  }
-
-  Ok(resp_verification_challenges)
 }
 
 pub async fn api_key_view(

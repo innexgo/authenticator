@@ -16,6 +16,7 @@ impl From<tokio_postgres::row::Row> for ApiKey {
         .try_into()
         .unwrap(),
       duration: row.get("duration"),
+      verified: row.get("verified"),
     }
   }
 }
@@ -26,6 +27,7 @@ pub async fn add(
   api_key_hash: String,
   api_key_kind: auth_service_api::request::ApiKeyKind,
   duration: i64,
+  verified: bool,
 ) -> Result<ApiKey, tokio_postgres::Error> {
   let creation_time = current_time_millis();
 
@@ -37,9 +39,10 @@ pub async fn add(
            creator_user_id,
            api_key_hash,
            api_key_kind,
-           duration
+           duration,
+           verified
        )
-       VALUES($1, $2, $3, $4, $5)
+       VALUES($1, $2, $3, $4, $5, $6)
        RETURNING api_key_id
       ",
       &[
@@ -48,6 +51,7 @@ pub async fn add(
         &api_key_hash,
         &(api_key_kind.clone() as i64),
         &duration,
+        &verified,
       ],
     ).await?
     .get(0);
@@ -60,6 +64,7 @@ pub async fn add(
     api_key_hash,
     api_key_kind,
     duration,
+    verified
   })
 }
 

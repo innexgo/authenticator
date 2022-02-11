@@ -43,14 +43,14 @@ pub fn api(
                 db.clone(),
                 mail_service.clone(),
                 warp::path!("public" / "api_key" / "new_valid_email"),
-                handlers::api_key_new_valid,
+                handlers::api_key_new_valid_email,
             ),
             adapter(
                 config.clone(),
                 db.clone(),
                 mail_service.clone(),
                 warp::path!("public" / "api_key" / "new_valid_username"),
-                handlers::api_key_new_valid,
+                handlers::api_key_new_valid_username,
             ),
             adapter(
                 config.clone(),
@@ -128,20 +128,6 @@ pub fn api(
                 mail_service.clone(),
                 warp::path!("public" / "email" / "view"),
                 handlers::email_view,
-            ),
-            adapter(
-                config.clone(),
-                db.clone(),
-                mail_service.clone(),
-                warp::path!("public" / "parent_permission" / "view"),
-                handlers::parent_permission_view,
-            ),
-            adapter(
-                config.clone(),
-                db.clone(),
-                mail_service.clone(),
-                warp::path!("public" / "verification_challenge" / "view"),
-                handlers::verification_challenge_view,
             ),
             adapter(
                 config.clone(),

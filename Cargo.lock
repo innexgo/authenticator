@@ -58,7 +58,7 @@ dependencies = [
 [[package]]
 name = "auth-service-api"
 version = "0.7.7"
-source = "git+https://github.com/innexgo/auth-service-api#e299fc98612585b4ebd663ca6181a6b15da1c723"
+source = "git+https://github.com/innexgo/auth-service-api#9bd5c7077ce4e4d8dc2d5117df9e1ec687950d51"
 dependencies = [
  "reqwest",
  "serde",

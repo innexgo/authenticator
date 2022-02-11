@@ -93,34 +93,3 @@ pub async fn get_latest_time_for_creator(
 
   Ok(time)
 }
-
-
-pub async fn query(
-  con: &mut impl GenericClient,
-  props: auth_service_api::request::VerificationChallengeViewProps,
-) -> Result<Vec<VerificationChallenge>, tokio_postgres::Error> {
-  let results = con
-    .query(
-      "SELECT vc.* FROM verification_challenge_t vc
-       WHERE 1 = 1
-       AND ($1::bigint   IS NULL OR vc.creation_time >= $1)
-       AND ($2::bigint   IS NULL OR vc.creation_time <= $2)
-       AND ($3::bigint[] IS NULL OR vc.creator_user_id = ANY($3))
-       AND ($4::bool     IS NULL OR vc.to_parent = $4)
-       AND ($5::text[]   IS NULL OR vc.email = ANY($5))
-       ORDER BY vc.verification_challenge_key_hash
-      ",
-      &[
-        &props.min_creation_time,
-        &props.max_creation_time,
-        &props.creator_user_id,
-        &props.to_parent,
-        &props.email,
-      ],
-    )
-    .await?
-    .into_iter()
-    .map(|row| row.into())
-    .collect();
-  Ok(results)
-}

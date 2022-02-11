@@ -29,10 +29,7 @@ pub async fn add(
        VALUES($1, $2)
        RETURNING email_id
       ",
-      &[
-        &creation_time,
-        &verification_challenge_key_hash,
-      ],
+      &[&creation_time, &verification_challenge_key_hash],
     )
     .await?
     .get(0);
@@ -63,7 +60,10 @@ pub async fn get_by_verification_challenge_key_hash(
   verification_challenge_key_hash: &str,
 ) -> Result<Option<Email>, tokio_postgres::Error> {
   let result = con
-    .query_opt("SELECT * FROM email_t WHERE verification_challenge_key_hash=$1", &[&verification_challenge_key_hash])
+    .query_opt(
+      "SELECT * FROM email_t WHERE verification_challenge_key_hash=$1",
+      &[&verification_challenge_key_hash],
+    )
     .await?
     .map(|row| row.into());
 
@@ -99,7 +99,8 @@ pub async fn get_own_by_user_id(
        WHERE vc.creator_user_id = $1
       ",
       &[&user_id],
-    ).await?
+    )
+    .await?
     .map(|x| x.into());
   Ok(result)
 }
@@ -115,7 +116,8 @@ pub async fn get_parent_by_user_id(
        WHERE vc.creator_user_id = $1
       ",
       &[&user_id],
-    ).await?
+    )
+    .await?
     .map(|x| x.into());
   Ok(result)
 }
@@ -126,18 +128,22 @@ pub async fn query(
 ) -> Result<Vec<Email>, tokio_postgres::Error> {
   let sql = [
     if props.only_recent {
-      "SELECT e.* FROM recent_own_email_v e"
+      if props.view_parent {
+        "SELECT e.* FROM recent_parent_email_v e"
+      } else {
+        "SELECT e.* FROM recent_own_email_v e"
+      }
     } else {
       "SELECT e.* FROM email_t e"
     },
     " JOIN verification_challenge_t vc USING(verification_challenge_key_hash)",
     " WHERE 1 = 1",
-    " WHERE vc.to_parent = false",
-    " AND ($1::bigint[] IS NULL OR e.email_id = ANY($1))",
-    " AND ($2::bigint   IS NULL OR e.creation_time >= $2)",
-    " AND ($3::bigint   IS NULL OR e.creation_time <= $3)",
-    " AND ($4::bigint[] IS NULL OR vc.creator_user_id = ANY($4))",
-    " AND ($5::text[]   IS NULL OR vc.email = ANY($5))",
+    " WHERE vc.to_parent = $1",
+    " AND ($2::bigint[] IS NULL OR e.email_id = ANY($2))",
+    " AND ($3::bigint   IS NULL OR e.creation_time >= $3)",
+    " AND ($4::bigint   IS NULL OR e.creation_time <= $4)",
+    " AND ($5::bigint[] IS NULL OR vc.creator_user_id = ANY($5))",
+    " AND ($6::text[]   IS NULL OR vc.email = ANY($6))",
     " ORDER BY e.email_id",
   ]
   .join("\n");
@@ -148,6 +154,7 @@ pub async fn query(
     .query(
       &stmnt,
       &[
+        &props.view_parent,
         &props.email_id,
         &props.min_creation_time,
         &props.max_creation_time,
