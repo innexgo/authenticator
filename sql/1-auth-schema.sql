@@ -18,7 +18,9 @@ create table user_data_t(
   user_data_id bigserial primary key,
   creation_time bigint not null,
   creator_user_id bigint not null references user_t(user_id),
-  name text not null
+  dateofbirth bigint not null,
+  username text not null,
+  realname text not null
 );
 
 create view recent_user_data_v as
@@ -36,45 +38,39 @@ create table verification_challenge_t(
   verification_challenge_key_hash text not null primary key,
   creation_time bigint not null,
   creator_user_id bigint not null references user_t(user_id),
-  to_parent bool not null,
-  email text not null
+  to_parent bool not null
+  email text not null,
 );
 
 drop table if exists email_t cascade;
 create table email_t(
   email_id bigserial primary key,
   creation_time bigint not null,
-  creator_user_id bigint not null references user_t(user_id),
   verification_challenge_key_hash text not null references verification_challenge_t(verification_challenge_key_hash)
 );
 
-create view recent_email_v as
+create view recent_own_email_v as
+  with maxids as (
+    select max(email_id) email_id 
+    from email_t e
+    join verification_challenge_t vc using(verification_challenge_key_hash)
+    where vc.to_parent = false
+    group by vc.creator_user_id
+  )
   select e.* from email_t e
-  inner join (
-   select max(email_id) id 
-   from email_t 
-   group by creator_user_id
-  ) maxids
-  on maxids.id = e.email_id;
+  inner join maxids using(email_id);
 
 
-drop table if exists parent_permission_t cascade;
-create table parent_permission_t(
-  parent_permission_id bigserial primary key,
-  creation_time bigint not null,
-  user_id bigint not null references user_t(user_id),
-  -- INVARIANT: if email_verification_challege field is null, then user has self authorized
-  verification_challenge_key_hash text references verification_challenge_t(verification_challenge_key_hash)  -- NULLABLE
-);
-
-create view recent_parent_permission_v as
-  select pp.* from parent_permission_t pp
-  inner join (
-    select max(parent_permission_id) id 
-    from parent_permission_t 
-    group by user_id
-  ) maxids
-  on maxids.id = pp.parent_permission_id;
+create view recent_parent_email_v as
+  with maxids as (
+    select max(email_id) email_id 
+    from email_t e
+    join verification_challenge_t vc using(verification_challenge_key_hash)
+    where vc.to_parent = true
+    group by vc.creator_user_id
+  )
+  select e.* from email_t e
+  inner join maxids using(email_id);
 
 drop table if exists password_reset_t;
 create table password_reset_t(
@@ -109,7 +105,8 @@ create table api_key_t(
   creator_user_id bigint not null references user_t(user_id),
   api_key_hash text not null,
   api_key_kind bigint not null, -- VALID, CANCEL
-  duration bigint not null -- only valid if api_key_kind == VALID
+  duration bigint not null, -- only valid if api_key_kind == VALID
+  verified bool not null
 );
 
 create view recent_api_key_v as

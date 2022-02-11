@@ -9,7 +9,9 @@ impl From<tokio_postgres::row::Row> for UserData {
       user_data_id: row.get("user_data_id"),
       creation_time: row.get("creation_time"),
       creator_user_id: row.get("creator_user_id"),
-      name: row.get("name"),
+      dateofbirth: row.get("dateofbirth"),
+      username: row.get("username"),
+      realname: row.get("realname"),
     }
   }
 }
@@ -17,7 +19,9 @@ impl From<tokio_postgres::row::Row> for UserData {
 pub async fn add(
   con: &mut impl GenericClient,
   creator_user_id: i64,
-  name: String,
+  dateofbirth: i64,
+  username: String,
+  realname: String,
 ) -> Result<UserData, tokio_postgres::Error> {
   let creation_time = current_time_millis();
 
@@ -27,12 +31,20 @@ pub async fn add(
        user_data_t(
         creation_time,
         creator_user_id,
-        name
+        dateofbirth,
+        username,
+        realname
        )
-       VALUES($1, $2, $3)
+       VALUES($1, $2, $3, $4, $5)
        RETURNING user_data_id
       ",
-      &[&creation_time, &creator_user_id, &name],
+      &[
+        &creation_time,
+        &creator_user_id,
+        &dateofbirth,
+        &username,
+        &realname,
+      ],
     )
     .await?
     .get(0);
@@ -42,7 +54,9 @@ pub async fn add(
     user_data_id,
     creation_time,
     creator_user_id,
-    name,
+    dateofbirth,
+    username,
+    realname,
   })
 }
 
@@ -57,21 +71,21 @@ pub async fn get_by_user_id(
        WHERE ud.creator_user_id = $1
       ",
       &[&user_id],
-    ).await?
+    )
+    .await?
     .map(|x| x.into());
 
   Ok(result)
 }
 
-#[allow(unused)]
-pub async fn get_by_user_data_id(
+pub async fn get_by_username(
   con: &mut impl GenericClient,
-  user_data_id: i64,
+  username: &str,
 ) -> Result<Option<UserData>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT * FROM user_data_t WHERE user_data_id=$1",
-      &[&user_data_id],
+      "SELECT * FROM user_data_t WHERE username=$1",
+      &[&username],
     )
     .await?
     .map(|row| row.into());
@@ -94,7 +108,10 @@ pub async fn query(
     " AND ($2::bigint   IS NULL OR ud.creation_time >= $2)",
     " AND ($3::bigint   IS NULL OR ud.creation_time <= $3)",
     " AND ($4::bigint[] IS NULL OR ud.creator_user_id = ANY($4))",
-    " AND ($5::text[]   IS NULL OR ud.name = ANY($5))",
+    " AND ($5::bigint   IS NULL OR ud.dateofbirth >= $5)",
+    " AND ($6::bigint   IS NULL OR ud.dateofbirth <= $6)",
+    " AND ($7::text[]   IS NULL OR ud.username= ANY($7))",
+    " AND ($8::text[]   IS NULL OR ud.realname = ANY($8))",
     " ORDER BY ud.user_data_id",
   ]
   .join("\n");
@@ -109,7 +126,10 @@ pub async fn query(
         &props.min_creation_time,
         &props.max_creation_time,
         &props.creator_user_id,
-        &props.name,
+        &props.min_dateofbirth,
+        &props.max_dateofbirth,
+        &props.username,
+        &props.realname,
       ],
     )
     .await?

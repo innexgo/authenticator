@@ -16,7 +16,6 @@ mod handlers;
 // database interface
 mod api_key_service;
 mod email_service;
-mod parent_permission_service;
 mod password_reset_service;
 mod password_service;
 mod user_data_service;

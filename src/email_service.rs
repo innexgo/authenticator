@@ -8,7 +8,6 @@ impl From<tokio_postgres::row::Row> for Email {
     Email {
       email_id: row.get("email_id"),
       creation_time: row.get("creation_time"),
-      creator_user_id: row.get("creator_user_id"),
       verification_challenge_key_hash: row.get("verification_challenge_key_hash"),
     }
   }
@@ -16,7 +15,6 @@ impl From<tokio_postgres::row::Row> for Email {
 
 pub async fn add(
   con: &mut impl GenericClient,
-  creator_user_id: i64,
   verification_challenge_key_hash: String,
 ) -> Result<Email, tokio_postgres::Error> {
   let creation_time = current_time_millis();
@@ -26,15 +24,13 @@ pub async fn add(
       "INSERT INTO
        email_t(
         creation_time,
-        creator_user_id,
         verification_challenge_key_hash
        )
-       VALUES($1, $2, $3)
+       VALUES($1, $2)
        RETURNING email_id
       ",
       &[
         &creation_time,
-        &creator_user_id,
         &verification_challenge_key_hash,
       ],
     )
@@ -44,7 +40,6 @@ pub async fn add(
   // return user
   Ok(Email {
     email_id,
-    creator_user_id,
     creation_time,
     verification_challenge_key_hash,
   })
@@ -93,19 +88,35 @@ pub async fn get_by_email(
   Ok(result)
 }
 
-pub async fn get_by_user_id(
+pub async fn get_own_by_user_id(
   con: &mut impl GenericClient,
   user_id: i64,
 ) -> Result<Option<Email>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT e.* FROM recent_email_v e
-       WHERE e.creator_user_id = $1
+      "SELECT e.* FROM recent_own_email_v e
+       JOIN verification_challenge vc USING(get_by_verification_challenge_key_hash)
+       WHERE vc.creator_user_id = $1
       ",
       &[&user_id],
     ).await?
     .map(|x| x.into());
+  Ok(result)
+}
 
+pub async fn get_parent_by_user_id(
+  con: &mut impl GenericClient,
+  user_id: i64,
+) -> Result<Option<Email>, tokio_postgres::Error> {
+  let result = con
+    .query_opt(
+      "SELECT e.* FROM recent_parent_email_v e
+       JOIN verification_challenge vc USING(get_by_verification_challenge_key_hash)
+       WHERE vc.creator_user_id = $1
+      ",
+      &[&user_id],
+    ).await?
+    .map(|x| x.into());
   Ok(result)
 }
 
@@ -115,16 +126,17 @@ pub async fn query(
 ) -> Result<Vec<Email>, tokio_postgres::Error> {
   let sql = [
     if props.only_recent {
-      "SELECT e.* FROM recent_email_v e"
+      "SELECT e.* FROM recent_own_email_v e"
     } else {
       "SELECT e.* FROM email_t e"
     },
-    " JOIN verification_challenge_t vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash",
+    " JOIN verification_challenge_t vc USING(verification_challenge_key_hash)",
     " WHERE 1 = 1",
+    " WHERE vc.to_parent = false",
     " AND ($1::bigint[] IS NULL OR e.email_id = ANY($1))",
     " AND ($2::bigint   IS NULL OR e.creation_time >= $2)",
     " AND ($3::bigint   IS NULL OR e.creation_time <= $3)",
-    " AND ($4::bigint[] IS NULL OR e.creator_user_id = ANY($4))",
+    " AND ($4::bigint[] IS NULL OR vc.creator_user_id = ANY($4))",
     " AND ($5::text[]   IS NULL OR vc.email = ANY($5))",
     " ORDER BY e.email_id",
   ]

@@ -11,7 +11,9 @@ pub struct UserData {
   pub user_data_id: i64,
   pub creation_time: i64,
   pub creator_user_id: i64,
-  pub name: String,
+  pub dateofbirth: i64,
+  pub username: String,
+  pub realname: String,
 }
 
 #[derive(Clone, Debug)]
@@ -27,16 +29,7 @@ pub struct VerificationChallenge {
 pub struct Email {
   pub email_id: i64,
   pub creation_time: i64,
-  pub creator_user_id: i64,
   pub verification_challenge_key_hash: String,
-}
-
-#[derive(Clone, Debug)]
-pub struct ParentPermission {
-  pub parent_permission_id: i64,
-  pub creation_time: i64,
-  pub user_id: i64,
-  pub verification_challenge_key_hash: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -62,5 +55,6 @@ pub struct ApiKey {
   pub creator_user_id: i64,
   pub api_key_hash: String,
   pub api_key_kind: ApiKeyKind,
+  pub verified: bool,
   pub duration: i64,
 }

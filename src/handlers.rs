@@ -8,7 +8,6 @@ use auth_service_api::response;
 use super::api_key_service;
 use super::db_types::*;
 use super::email_service;
-use super::parent_permission_service;
 use super::password_reset_service;
 use super::password_service;
 use super::user_data_service;
@@ -20,6 +19,7 @@ use mail_service_api::client::MailService;
 use mail_service_api::response::MailError;
 
 static FIFTEEN_MINUTES: u64 = 15 * 60 * 1000;
+static THIRTEEN_YEARS: u64 = (365.25 * 24.0 * 60.0 * 60.0 * 1000.0) as u64;
 
 fn report_internal_err<E: std::error::Error>(e: E) -> response::AuthError {
   utils::log(utils::Event {
@@ -73,7 +73,9 @@ async fn fill_user_data(
     user_data_id: user_data.user_data_id,
     creation_time: user_data.creation_time,
     creator_user_id: user_data.creator_user_id,
-    name: user_data.name,
+    dateofbirth: user_data.dateofbirth,
+    username: user_data.username,
+    realname: user_data.realname,
   })
 }
 
@@ -82,11 +84,11 @@ async fn fill_api_key(
   api_key: ApiKey,
   key: Option<String>,
 ) -> Result<response::ApiKey, response::AuthError> {
-
   Ok(response::ApiKey {
     api_key_id: api_key.api_key_id,
     creation_time: api_key.creation_time,
     creator_user_id: api_key.creator_user_id,
+    verified: api_key.verified,
     api_key_data: match api_key.api_key_kind {
       request::ApiKeyKind::Valid => response::ApiKeyData::Valid {
         duration: api_key.duration,
@@ -101,7 +103,6 @@ async fn fill_email(
   con: &mut tokio_postgres::Client,
   email: Email,
 ) -> Result<response::Email, response::AuthError> {
-
   let verification_challenge =
     verification_challenge_service::get_by_verification_challenge_key_hash(
       con,
@@ -114,36 +115,7 @@ async fn fill_email(
   Ok(response::Email {
     email_id: email.email_id,
     creation_time: email.creation_time,
-    creator_user_id: email.creator_user_id,
     verification_challenge: fill_verification_challenge(con, verification_challenge).await?,
-  })
-}
-
-async fn fill_parent_permission(
-  con: &mut tokio_postgres::Client,
-  parent_permission: ParentPermission,
-) -> Result<response::ParentPermission, response::AuthError> {
-
-  let verification_challenge = match parent_permission.verification_challenge_key_hash {
-    Some(verification_challenge_key_hash) => {
-      let verification_challenge =
-        verification_challenge_service::get_by_verification_challenge_key_hash(
-          con,
-          &verification_challenge_key_hash,
-        )
-        .await
-        .map_err(report_postgres_err)?
-        .ok_or(response::AuthError::VerificationChallengeNonexistent)?;
-      Some(fill_verification_challenge(con, verification_challenge).await?)
-    }
-    _ => None,
-  };
-
-  Ok(response::ParentPermission {
-    parent_permission_id: parent_permission.parent_permission_id,
-    creation_time: parent_permission.creation_time,
-    user_id: parent_permission.user_id,
-    verification_challenge,
   })
 }
 
@@ -151,7 +123,6 @@ async fn fill_password(
   con: &mut tokio_postgres::Client,
   password: Password,
 ) -> Result<response::Password, response::AuthError> {
-
   let password_reset = match password.password_reset_key_hash {
     Some(password_reset_key_hash) => {
       let password_reset =
@@ -214,35 +185,90 @@ pub async fn get_api_key_if_verified(
 ) -> Result<ApiKey, response::AuthError> {
   let creator_api_key = get_api_key_if_valid_noverify(con, api_key).await?;
 
-  // ensure parent permission
-  let _ = parent_permission_service::get_by_user_id(con, creator_api_key.creator_user_id)
+  // check if has email yet
+  let _ = email_service::get_own_by_user_id(con, creator_api_key.creator_user_id)
     .await
     .map_err(report_postgres_err)?
-    .ok_or(response::AuthError::ParentPermissionNonexistent)?;
+    .ok_or(response::AuthError::ApiKeyUnauthorized)?;
+
+  // check if has parent permission yet
+  let _ = email_service::get_parent_by_user_id(con, creator_api_key.creator_user_id)
+    .await
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::ApiKeyUnauthorized)?;
 
   Ok(creator_api_key)
 }
 
-pub async fn api_key_new_valid(
+pub async fn api_key_new_valid_email(
   _config: Config,
   db: Db,
   _mail_service: MailService,
-  props: request::ApiKeyNewValidProps,
+  props: request::ApiKeyNewValidEmailProps,
 ) -> Result<response::ApiKey, response::AuthError> {
   let con = &mut *db.lock().await;
 
-  let email = email_service::get_by_email(con, &props.user_email)
+  let email = email_service::get_by_email(con, &props.email)
     .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::EmailNonexistent)?;
 
-  let password = password_service::get_by_user_id(con, email.creator_user_id)
+  let verification_challenge =
+    verification_challenge_service::get_by_verification_challenge_key_hash(
+      con,
+      &email.verification_challenge_key_hash,
+    )
+    .await
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::VerificationChallengeNonexistent)?;
+
+  // now delegate
+  internal_api_key_new_valid(
+    con,
+    verification_challenge.creator_user_id,
+    props.password,
+    props.duration,
+  )
+  .await
+}
+
+pub async fn api_key_new_valid_username(
+  _config: Config,
+  db: Db,
+  _mail_service: MailService,
+  props: request::ApiKeyNewValidUsernameProps,
+) -> Result<response::ApiKey, response::AuthError> {
+  let con = &mut *db.lock().await;
+
+  let userdata = user_data_service::get_by_username(con, &props.username)
+    .await
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::UserNonexistent)?;
+
+  // now delegate
+  internal_api_key_new_valid(
+    con,
+    userdata.creator_user_id,
+    props.password,
+    props.duration,
+  )
+  .await
+}
+
+pub async fn internal_api_key_new_valid(
+  con: &mut tokio_postgres::Client,
+  user_id: i64,
+  user_password: String,
+  duration: i64,
+) -> Result<response::ApiKey, response::AuthError> {
+  // get user password
+  let password = password_service::get_by_user_id(con, user_id)
     .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::PasswordNonexistent)?;
 
   // validate password with argon2 (password hashing algorithm)
-  if !utils::verify_password(&props.user_password, &password.password_hash)
+  if !utils::verify_password(&user_password, &password.password_hash)
     .map_err(report_internal_err)?
   {
     return Err(response::AuthError::PasswordIncorrect);
@@ -257,10 +283,10 @@ pub async fn api_key_new_valid(
   // add new api key
   let api_key = api_key_service::add(
     &mut sp,
-    email.creator_user_id,
+    user_id,
     utils::hash_str(&raw_api_key),
     request::ApiKeyKind::Valid,
-    props.duration,
+    duration,
   )
   .await
   .map_err(report_postgres_err)?;
@@ -385,18 +411,9 @@ pub async fn verification_challenge_new(
   }
 
   let con = &mut *db.lock().await;
-  // api key verification required
-  let api_key = get_api_key_if_valid_noverify(con, &props.api_key).await?;
 
-  // if to_parent, check that parental permission doesn't exist yet
-  if props.to_parent
-    && parent_permission_service::get_by_user_id(con, api_key.creator_user_id)
-      .await
-      .map_err(report_postgres_err)?
-      .is_some()
-  {
-    return Err(response::AuthError::ParentPermissionExistent);
-  }
+  // you need to have an account but its fine not to be verified yet
+  let api_key = get_api_key_if_valid_noverify(con, &props.api_key).await?;
 
   // don't let people spam emails
   let last_email_sent_time =
@@ -425,7 +442,7 @@ pub async fn verification_challenge_new(
     send_parent_permission_email(
       &mail_service,
       &props.email,
-      &user_data.name,
+      &user_data.realname,
       &config.site_external_url,
       &verification_challenge_key,
     )
@@ -434,7 +451,7 @@ pub async fn verification_challenge_new(
     send_email_verification_email(
       &mail_service,
       &props.email,
-      &user_data.name,
+      &user_data.realname,
       &config.site_external_url,
       &verification_challenge_key,
     )
@@ -462,13 +479,13 @@ pub async fn user_new(
   mail_service: MailService,
   props: request::UserNewProps,
 ) -> Result<response::UserData, response::AuthError> {
-  // name isn't empty
-  if props.user_name.is_empty() {
+  // realname isn't empty
+  if props.realname.is_empty() {
     return Err(response::AuthError::UserNameEmpty);
   }
 
   // server side validation of password strength
-  if !utils::is_secure_password(&props.user_password) {
+  if !utils::is_secure_password(&props.password) {
     return Err(response::AuthError::PasswordInsecure);
   }
 
@@ -482,70 +499,21 @@ pub async fn user_new(
     .map_err(report_postgres_err)?;
 
   // create user data
-  let user_data = user_data_service::add(&mut sp, user.user_id, props.user_name)
-    .await
-    .map_err(report_postgres_err)?;
-
-  // create password
-  let password_hash = utils::hash_password(&props.user_password).map_err(report_internal_err)?;
-  password_service::add(&mut sp, user.user_id, password_hash, None)
-    .await
-    .map_err(report_postgres_err)?;
-
-  // create email request
-  let verification_challenge_key = utils::gen_random_string();
-
-  send_email_verification_email(
-    &mail_service,
-    &props.user_email,
-    &user_data.name,
-    &config.site_external_url,
-    &verification_challenge_key,
-  )
-  .await?;
-
-  // insert into database
-  verification_challenge_service::add(
+  let user_data = user_data_service::add(
     &mut sp,
-    utils::hash_str(&verification_challenge_key),
-    props.user_email,
     user.user_id,
-    false,
+    props.dateofbirth,
+    props.username,
+    props.realname,
   )
   .await
   .map_err(report_postgres_err)?;
 
-  // if it was indicated that the user is under than 13, send a parental permission
-  if let Some(parent_email) = props.parent_email {
-    // add new verification challenge for parent
-    let verification_challenge_key = utils::gen_random_string();
-
-    // create email request
-    send_parent_permission_email(
-      &mail_service,
-      &parent_email,
-      &user_data.name,
-      &config.site_external_url,
-      &verification_challenge_key,
-    )
-    .await?;
-
-    // insert into database
-    verification_challenge_service::add(
-      &mut sp,
-      utils::hash_str(&verification_challenge_key),
-      parent_email,
-      user.user_id,
-      true,
-    )
+  // create password
+  let password_hash = utils::hash_password(&props.password).map_err(report_internal_err)?;
+  password_service::add(&mut sp, user.user_id, password_hash, None)
     .await
     .map_err(report_postgres_err)?;
-  } else {
-    // the user says they are over 13
-    parent_permission_service::add(&mut sp, user.user_id, None)
-      .await
-      .map_err(report_postgres_err)?;
-  }
 
   sp.commit().await.map_err(report_postgres_err)?;
 
@@ -565,9 +533,15 @@ pub async fn user_data_new(
   let creator_key = get_api_key_if_valid_noverify(con, &props.api_key).await?;
 
   // create key data
-  let user_data = user_data_service::add(con, creator_key.creator_user_id, props.user_name)
-    .await
-    .map_err(report_postgres_err)?;
+  let user_data = user_data_service::add(
+    con,
+    creator_key.creator_user_id,
+    props.dateofbirth,
+    props.username,
+    props.realname,
+  )
+  .await
+  .map_err(report_postgres_err)?;
 
   // return json
   fill_user_data(con, user_data).await
@@ -618,56 +592,12 @@ pub async fn email_new(
   }
 
   // create key data
-  let email = email_service::add(con, vc.creator_user_id, vckh)
+  let email = email_service::add(con, vckh)
     .await
     .map_err(report_postgres_err)?;
 
   // return json
   fill_email(con, email).await
-}
-
-pub async fn parent_permission_new(
-  _config: Config,
-  db: Db,
-  _mail_service: MailService,
-  props: request::ParentPermissionNewProps,
-) -> Result<response::ParentPermission, response::AuthError> {
-  let con = &mut *db.lock().await;
-
-  let vckh = utils::hash_str(&props.verification_challenge_key);
-
-  // check that the verification challenge exists
-  let vc = verification_challenge_service::get_by_verification_challenge_key_hash(con, &vckh)
-    .await
-    .map_err(report_postgres_err)?
-    .ok_or(response::AuthError::VerificationChallengeNonexistent)?;
-
-  // check that it hasn't timed out
-  if FIFTEEN_MINUTES as i64 + vc.creation_time < utils::current_time_millis() {
-    return Err(response::AuthError::VerificationChallengeTimedOut);
-  }
-
-  // check that the verification challenge is meant for the correct purpose
-  if !vc.to_parent {
-    return Err(response::AuthError::VerificationChallengeWrongKind);
-  }
-
-  // check if the verification challenge was not already used to make a new parent_permission
-  if parent_permission_service::get_by_verification_challenge_key_hash(con, &vckh)
-    .await
-    .map_err(report_postgres_err)?
-    .is_some()
-  {
-    return Err(response::AuthError::VerificationChallengeUsed);
-  }
-
-  // create key data
-  let parent_permission = parent_permission_service::add(con, vc.creator_user_id, Some(vckh))
-    .await
-    .map_err(report_postgres_err)?;
-
-  // return json
-  fill_parent_permission(con, parent_permission).await
 }
 
 pub async fn password_reset_new(
@@ -678,10 +608,19 @@ pub async fn password_reset_new(
 ) -> Result<response::PasswordReset, response::AuthError> {
   let con = &mut *db.lock().await;
 
-  let email = email_service::get_by_email(con, &props.user_email)
+  let email = email_service::get_by_email(con, &props.email)
     .await
     .map_err(report_postgres_err)?
     .ok_or(response::AuthError::EmailNonexistent)?;
+
+  let verification_challenge =
+    verification_challenge_service::get_by_verification_challenge_key_hash(
+      con,
+      &email.verification_challenge_key_hash,
+    )
+    .await
+    .map_err(report_postgres_err)?
+    .ok_or(response::AuthError::VerificationChallengeNonexistent)?;
 
   let raw_key = utils::gen_random_string();
 
@@ -689,7 +628,7 @@ pub async fn password_reset_new(
   let _ = mail_service
     .mail_new(mail_service_api::request::MailNewProps {
       request_id: 0,
-      destination: props.user_email,
+      destination: props.email,
       topic: "password_reset".to_owned(),
       title: format!("{}: Password Reset", &config.site_external_url),
       content: [
@@ -709,10 +648,13 @@ pub async fn password_reset_new(
 
   let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
-  let password_reset =
-    password_reset_service::add(&mut sp, utils::hash_str(&raw_key), email.creator_user_id)
-      .await
-      .map_err(report_postgres_err)?;
+  let password_reset = password_reset_service::add(
+    &mut sp,
+    utils::hash_str(&raw_key),
+    verification_challenge.creator_user_id,
+  )
+  .await
+  .map_err(report_postgres_err)?;
 
   sp.commit().await.map_err(report_postgres_err)?;
 
@@ -858,7 +800,7 @@ pub async fn user_data_view(
   Ok(resp_user_datas)
 }
 
-pub async fn email_view(
+pub async fn email_own_view(
   _config: Config,
   db: Db,
   _mail_service: MailService,
@@ -902,28 +844,6 @@ pub async fn password_view(
   }
 
   Ok(resp_passwords)
-}
-
-pub async fn parent_permission_view(
-  _config: Config,
-  db: Db,
-  _mail_service: MailService,
-  props: request::ParentPermissionViewProps,
-) -> Result<Vec<response::ParentPermission>, response::AuthError> {
-  let con = &mut *db.lock().await;
-  // api key verification required
-  let _ = get_api_key_if_valid_noverify(con, &props.api_key).await?;
-  // get parent_permissions
-  let parent_permissions = parent_permission_service::query(con, props)
-    .await
-    .map_err(report_postgres_err)?;
-
-  let mut resp_parent_permissions = vec![];
-  for u in parent_permissions.into_iter() {
-    resp_parent_permissions.push(fill_parent_permission(con, u).await?);
-  }
-
-  Ok(resp_parent_permissions)
 }
 
 pub async fn verification_challenge_view(
