@@ -55,6 +55,5 @@ pub struct ApiKey {
   pub creator_user_id: i64,
   pub api_key_hash: String,
   pub api_key_kind: ApiKeyKind,
-  pub verified: bool,
   pub duration: i64,
 }

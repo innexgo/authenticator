@@ -104,9 +104,8 @@ create table api_key_t(
   creation_time bigint not null,
   creator_user_id bigint not null references user_t(user_id),
   api_key_hash text not null,
-  api_key_kind bigint not null, -- VALID, CANCEL
+  api_key_kind bigint not null, -- VALID, NO_EMAIL, NO_PARENT, CANCEL
   duration bigint not null, -- only valid if api_key_kind == VALID
-  verified bool not null
 );
 
 create view recent_api_key_v as

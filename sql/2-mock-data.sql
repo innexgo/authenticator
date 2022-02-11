@@ -26,17 +26,19 @@ INSERT INTO user_t(
 INSERT INTO user_data_t(
   creation_time,
   creator_user_id,
-  name
+  dateofbirth,
+  username,
+  realname
 ) VALUES
-(1, 1, 'Admin 1'),
-(1, 2, 'Teacher 2'),
-(1, 3, 'Teacher 3'),
-(1, 4, 'Student 4'),
-(1, 5, 'Student 5'),
-(1, 6, 'Student 6'),
-(1, 7, 'Student 7'),
-(1, 8, 'Student 8'),
-(1, 9, 'Student 9');
+(1, 1, 1, 'Admin 1', 'Student 9'),
+(1, 2, 1, 'Teacher 2', 'Student 9'),
+(1, 3, 1, 'Teacher 3', 'Student 9'),
+(1, 4, 1, 'Student 4', 'Student 9'),
+(1, 5, 1, 'Student 5', 'Student 9'),
+(1, 6, 1, 'Student 6', 'Student 9'),
+(1, 7, 1, 'Student 7', 'Student 9'),
+(1, 8, 1, 'Student 8', 'Student 9'),
+(1, 9, 1, 'Student 9', 'Student 9');
 
 INSERT INTO verification_challenge_t(
   verification_challenge_key_hash,
@@ -57,33 +59,17 @@ INSERT INTO verification_challenge_t(
 
 INSERT INTO email_t(
   creation_time,
-  creator_user_id,
   verification_challenge_key_hash
 ) VALUES
-(1, 1, '1'),
-(1, 2, '2'),
-(1, 3, '3'),
-(1, 4, '4'),
-(1, 5, '5'),
-(1, 6, '6'),
-(1, 7, '7'),
-(1, 8, '8'),
-(1, 9, '9');
-
-INSERT INTO parent_permission_t(
-  creation_time,
-  user_id,
-  verification_challenge_key_hash
-) VALUES
-(1, 1, NULL),
-(1, 2, NULL),
-(1, 3, NULL),
-(1, 4, NULL),
-(1, 5, NULL),
-(1, 6, NULL),
-(1, 7, NULL),
-(1, 8, NULL),
-(1, 9, NULL);
+(1, '1'),
+(1, '2'),
+(1, '3'),
+(1, '4'),
+(1, '5'),
+(1, '6'),
+(1, '7'),
+(1, '8'),
+(1, '9');
 
 INSERT INTO password_t(
   creation_time,

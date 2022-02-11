@@ -1,7 +1,7 @@
 use super::db_types::*;
 use super::utils::current_time_millis;
-use tokio_postgres::GenericClient;
 use std::convert::TryInto;
+use tokio_postgres::GenericClient;
 
 impl From<tokio_postgres::row::Row> for ApiKey {
   // select * from api_key order only, otherwise it will fail
@@ -16,7 +16,6 @@ impl From<tokio_postgres::row::Row> for ApiKey {
         .try_into()
         .unwrap(),
       duration: row.get("duration"),
-      verified: row.get("verified"),
     }
   }
 }
@@ -27,7 +26,6 @@ pub async fn add(
   api_key_hash: String,
   api_key_kind: auth_service_api::request::ApiKeyKind,
   duration: i64,
-  verified: bool,
 ) -> Result<ApiKey, tokio_postgres::Error> {
   let creation_time = current_time_millis();
 
@@ -39,10 +37,9 @@ pub async fn add(
            creator_user_id,
            api_key_hash,
            api_key_kind,
-           duration,
-           verified
+           duration
        )
-       VALUES($1, $2, $3, $4, $5, $6)
+       VALUES($1, $2, $3, $4, $5)
        RETURNING api_key_id
       ",
       &[
@@ -51,9 +48,9 @@ pub async fn add(
         &api_key_hash,
         &(api_key_kind.clone() as i64),
         &duration,
-        &verified,
       ],
-    ).await?
+    )
+    .await?
     .get(0);
 
   // return api_key
@@ -64,7 +61,6 @@ pub async fn add(
     api_key_hash,
     api_key_kind,
     duration,
-    verified
   })
 }
 
@@ -76,7 +72,8 @@ pub async fn get_by_api_key_hash(
     .query_opt(
       "SELECT * FROM recent_api_key_v WHERE api_key_hash=$1",
       &[&api_key_hash],
-    ).await?
+    )
+    .await?
     .map(|x| x.into());
 
   Ok(result)
@@ -90,9 +87,9 @@ pub async fn query(
 
   let sql = [
     if props.only_recent {
-        "SELECT ak.* FROM recent_api_key_v ak"
+      "SELECT ak.* FROM recent_api_key_v ak"
     } else {
-        "SELECT ak.* FROM api_key_t ak"
+      "SELECT ak.* FROM api_key_t ak"
     },
     " WHERE 1 = 1",
     " AND ($1::bigint[] IS NULL OR ak.api_key_id IN $1)",
@@ -101,7 +98,7 @@ pub async fn query(
     " AND ($4::bigint[] IS NULL OR ak.creator_user_id IN $4)",
     " AND ($5::bigint   IS NULL OR ak.duration >= $5)",
     " AND ($6::bigint   IS NULL OR ak.duration <= $6)",
-    " AND ($7::bigint   IS NULL OR ak.api_key_kind = $7)",
+    " AND ($7::bigint[] IS NULL OR ak.api_key_kind = ANY($7))",
     " ORDER BY ak.api_key_id",
   ]
   .join("");
@@ -118,9 +115,12 @@ pub async fn query(
         &props.creator_user_id,
         &props.min_duration,
         &props.max_duration,
-        &props.api_key_kind.map(|x| x as i64),
+        &props
+          .api_key_kind
+          .map(|x| x.into_iter().map(|e| e as i64).collect::<Vec<i64>>()),
       ],
-    ).await?
+    )
+    .await?
     .into_iter()
     .map(|x| x.into())
     .collect();

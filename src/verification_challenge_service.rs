@@ -24,24 +24,28 @@ pub async fn add(
 ) -> Result<VerificationChallenge, tokio_postgres::Error> {
   let creation_time = current_time_millis();
 
-  con.execute(
-    "INSERT INTO
-     verification_challenge_t(
-         verification_challenge_key_hash,
-         creation_time,
-         creator_user_id,
-         to_parent,
-         email
-     )
-     VALUES($1, $2, $3, $4, $5)",
-    &[
-      &verification_challenge_key_hash,
-      &creation_time,
-      &creator_user_id,
-      &to_parent,
-      &email,
-    ],
-  ).await?;
+  con
+    .execute(
+      "
+      INSERT INTO
+      verification_challenge_t(
+          verification_challenge_key_hash,
+          creation_time,
+          creator_user_id,
+          to_parent,
+          email
+      )
+      VALUES($1, $2, $3, $4, $5)
+      ",
+      &[
+        &verification_challenge_key_hash,
+        &creation_time,
+        &creator_user_id,
+        &to_parent,
+        &email,
+      ],
+    )
+    .await?;
 
   Ok(VerificationChallenge {
     verification_challenge_key_hash,
@@ -60,7 +64,8 @@ pub async fn get_by_verification_challenge_key_hash(
     .query_opt(
       "SELECT * FROM verification_challenge_t WHERE verification_challenge_key_hash=$1",
       &[&verification_challenge_key_hash],
-    ).await?
+    )
+    .await?
     .map(|row| row.into());
 
   Ok(result)
@@ -74,21 +79,32 @@ pub async fn get_latest_email_time_for_address(
     .query_one(
       "SELECT MAX(creation_time) FROM verification_challenge_t WHERE email=$1",
       &[&email],
-    ).await?
+    )
+    .await?
     .get(0);
 
   Ok(time)
 }
 
-pub async fn get_latest_time_for_creator(
+pub async fn get_num_challenges_by_creator_between(
   con: &mut impl GenericClient,
   creator_user_id: i64,
-) -> Result<Option<i64>, tokio_postgres::Error> {
+  min_time: i64,
+  max_time: i64,
+) -> Result<i64, tokio_postgres::Error> {
   let time = con
     .query_one(
-      "SELECT MAX(creation_time) FROM verification_challenge_t WHERE creator_user_id=$1",
-      &[&creator_user_id],
-    ).await?
+      "
+      SELECT COUNT(*)
+      FROM verification_challenge_t
+      WHERE 1 = 1
+      AND creator_user_id=$1
+      AND creation_time >= $2
+      AND creation_time <= $3
+      ",
+      &[&creator_user_id, &min_time, &max_time],
+    )
+    .await?
     .get(0);
 
   Ok(time)
