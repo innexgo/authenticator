@@ -71,13 +71,13 @@ pub async fn get_by_verification_challenge_key_hash(
 }
 
 // gets most recent email
-pub async fn get_by_email(
+pub async fn get_by_own_email(
   con: &mut impl GenericClient,
   email: &str,
 ) -> Result<Option<Email>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT e.* FROM recent_email_v e
+      "SELECT e.* FROM recent_own_email_v e
        INNER JOIN verification_challenge_t vc ON vc.verification_challenge_key_hash = e.verification_challenge_key_hash
        WHERE vc.email = $1
       ",
@@ -95,7 +95,7 @@ pub async fn get_own_by_user_id(
   let result = con
     .query_opt(
       "SELECT e.* FROM recent_own_email_v e
-       JOIN verification_challenge vc USING(get_by_verification_challenge_key_hash)
+       JOIN verification_challenge_t vc USING(verification_challenge_key_hash)
        WHERE vc.creator_user_id = $1
       ",
       &[&user_id],
@@ -112,7 +112,7 @@ pub async fn get_parent_by_user_id(
   let result = con
     .query_opt(
       "SELECT e.* FROM recent_parent_email_v e
-       JOIN verification_challenge vc USING(get_by_verification_challenge_key_hash)
+       JOIN verification_challenge_t vc USING(verification_challenge_key_hash)
        WHERE vc.creator_user_id = $1
       ",
       &[&user_id],

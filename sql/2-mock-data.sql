@@ -30,15 +30,15 @@ INSERT INTO user_data_t(
   username,
   realname
 ) VALUES
-(1, 1, 1, 'Admin 1', 'Student 9'),
-(1, 2, 1, 'Teacher 2', 'Student 9'),
-(1, 3, 1, 'Teacher 3', 'Student 9'),
-(1, 4, 1, 'Student 4', 'Student 9'),
-(1, 5, 1, 'Student 5', 'Student 9'),
-(1, 6, 1, 'Student 6', 'Student 9'),
-(1, 7, 1, 'Student 7', 'Student 9'),
-(1, 8, 1, 'Student 8', 'Student 9'),
-(1, 9, 1, 'Student 9', 'Student 9');
+(1, 1, 1, 'admin1', 'Admin 1'),
+(1, 2, 1, 'teacher2', 'Teacher 2'),
+(1, 3, 1, 'teacher3', 'Teacher 3'),
+(1, 4, 1, 'student4', 'Student 4'),
+(1, 5, 1, 'student5', 'Student 5'),
+(1, 6, 1, 'student6', 'Student 6'),
+(1, 7, 1, 'student7', 'Student 7'),
+(1, 8, 1, 'student8', 'Student 8'),
+(1, 9, 1, 'student9', 'Student 9');
 
 INSERT INTO verification_challenge_t(
   verification_challenge_key_hash,

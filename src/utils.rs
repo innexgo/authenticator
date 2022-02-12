@@ -31,6 +31,23 @@ pub fn is_secure_password(password: &str) -> bool {
   len >= 8 && numdigits > 0
 }
 
+pub fn is_username_valid(username: &str) -> bool {
+  // length must be 0..=20
+  if username.len() == 0 || username.len() > 20{
+      return false;
+  }
+
+  if !username.chars().all(char::is_alphanumeric) {
+      return false;
+  }
+
+  return true;
+}
+
+pub fn is_realname_valid(realname: &str) -> bool {
+    return !realname.is_empty();
+}
+
 pub fn verify_password(password: &str, password_hash: &str) -> Result<bool, argon2::Error> {
   argon2::verify_encoded(password_hash, password.as_bytes())
 }

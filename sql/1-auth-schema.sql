@@ -38,8 +38,8 @@ create table verification_challenge_t(
   verification_challenge_key_hash text not null primary key,
   creation_time bigint not null,
   creator_user_id bigint not null references user_t(user_id),
-  to_parent bool not null
-  email text not null,
+  to_parent bool not null,
+  email text not null
 );
 
 drop table if exists email_t cascade;
@@ -72,7 +72,7 @@ create view recent_parent_email_v as
   select e.* from email_t e
   inner join maxids using(email_id);
 
-drop table if exists password_reset_t;
+drop table if exists password_reset_t cascade;
 create table password_reset_t(
   password_reset_key_hash text not null primary key,
   creation_time bigint not null,
@@ -105,7 +105,7 @@ create table api_key_t(
   creator_user_id bigint not null references user_t(user_id),
   api_key_hash text not null,
   api_key_kind bigint not null, -- VALID, NO_EMAIL, NO_PARENT, CANCEL
-  duration bigint not null, -- only valid if api_key_kind == VALID
+  duration bigint not null -- only valid if api_key_kind == VALID
 );
 
 create view recent_api_key_v as
