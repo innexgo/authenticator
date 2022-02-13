@@ -84,7 +84,7 @@ pub async fn get_by_username(
 ) -> Result<Option<UserData>, tokio_postgres::Error> {
   let result = con
     .query_opt(
-      "SELECT * FROM user_data_t WHERE username=$1",
+      "SELECT * FROM recent_user_data_v WHERE username=$1",
       &[&username],
     )
     .await?

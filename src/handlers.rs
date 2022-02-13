@@ -44,7 +44,7 @@ fn report_mail_err(e: MailError) -> response::AuthError {
     MailError::DestinationBounced => response::AuthError::EmailBounced,
     MailError::DestinationProhibited => response::AuthError::EmailBounced,
     // TODO: log this
-    _ => response::AuthError::EmailBounced,
+    _ => response::AuthError::InternalServerError,
   };
 
   utils::log(utils::Event {
@@ -290,10 +290,10 @@ pub async fn internal_api_key_new_valid(
     request::ApiKeyKind::NoEmail
   };
 
-  let raw_api_key = utils::gen_random_string();
 
   let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
+  let raw_api_key = utils::gen_random_string();
   // add new api key
   let api_key = api_key_service::add(
     &mut sp,
@@ -495,12 +495,12 @@ pub async fn user_new(
   db: Db,
   _mail_service: MailService,
   props: request::UserNewProps,
-) -> Result<response::UserData, response::AuthError> {
-  if utils::is_realname_valid(&props.realname) {
+) -> Result<response::ApiKey, response::AuthError> {
+  if !utils::is_realname_valid(&props.realname) {
     return Err(response::AuthError::UserRealnameInvalid);
   }
 
-  if utils::is_username_valid(&props.username) {
+  if !utils::is_username_valid(&props.username) {
     return Err(response::AuthError::UserUsernameInvalid);
   }
 
@@ -544,10 +544,25 @@ pub async fn user_new(
     .await
     .map_err(report_postgres_err)?;
 
+
+  let raw_api_key = utils::gen_random_string();
+  // add new api key
+  let api_key = api_key_service::add(
+    &mut sp,
+    user_data.creator_user_id,
+    utils::hash_str(&raw_api_key),
+    request::ApiKeyKind::NoEmail,
+    // 1 hour
+    props.api_key_duration as i64,
+  )
+  .await
+  .map_err(report_postgres_err)?;
+
+
   sp.commit().await.map_err(report_postgres_err)?;
 
-  // return filled struct
-  fill_user_data(con, user_data).await
+  // return api key
+  fill_api_key(con, api_key, Some(raw_api_key)).await
 }
 
 pub async fn user_data_new(

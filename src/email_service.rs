@@ -128,7 +128,7 @@ pub async fn query(
 ) -> Result<Vec<Email>, tokio_postgres::Error> {
   let sql = [
     if props.only_recent {
-      if props.view_parent {
+      if props.to_parent {
         "SELECT e.* FROM recent_parent_email_v e"
       } else {
         "SELECT e.* FROM recent_own_email_v e"
@@ -138,7 +138,7 @@ pub async fn query(
     },
     " JOIN verification_challenge_t vc USING(verification_challenge_key_hash)",
     " WHERE 1 = 1",
-    " WHERE vc.to_parent = $1",
+    " AND vc.to_parent = $1",
     " AND ($2::bigint[] IS NULL OR e.email_id = ANY($2))",
     " AND ($3::bigint   IS NULL OR e.creation_time >= $3)",
     " AND ($4::bigint   IS NULL OR e.creation_time <= $4)",
@@ -154,7 +154,7 @@ pub async fn query(
     .query(
       &stmnt,
       &[
-        &props.view_parent,
+        &props.to_parent,
         &props.email_id,
         &props.min_creation_time,
         &props.max_creation_time,
