@@ -19,7 +19,7 @@ use mail_service_api::client::MailService;
 use mail_service_api::response::MailError;
 
 static FIFTEEN_MINUTES: i64 = 15 * 60 * 1000;
-static THIRTEEN_YEARS: i64 = (365.25 * 24.0 * 60.0 * 60.0 * 1000.0) as i64;
+static THIRTEEN_YEARS: i64 = (13.0 * 365.25 * 24.0 * 60.0 * 60.0 * 1000.0) as i64;
 
 fn report_internal_err<E: std::error::Error>(e: E) -> response::AuthError {
   utils::log(utils::Event {
@@ -638,7 +638,7 @@ pub async fn email_new(
   }
 
   // check that the verification challenge is meant for the correct purpose
-  if vc.to_parent {
+  if vc.to_parent != props.to_parent {
     return Err(response::AuthError::VerificationChallengeWrongKind);
   }
 
