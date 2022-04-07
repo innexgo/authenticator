@@ -1,5 +1,4 @@
 use super::db_types::*;
-use super::utils::current_time_millis;
 use tokio_postgres::GenericClient;
 
 impl From<tokio_postgres::row::Row> for User {
@@ -15,25 +14,20 @@ impl From<tokio_postgres::row::Row> for User {
 pub async fn add(
   con: &mut impl GenericClient,
 ) -> Result<User, tokio_postgres::Error> {
-  let creation_time = current_time_millis();
-  let user_id = con
+  let row  = con
     .query_one(
       "INSERT INTO
-       user_t(
-        creation_time
-       )
-       VALUES($1)
-       RETURNING user_id
+       user_t
+       VALUES(DEFAULT)
+       RETURNING user_id, creation_time
       ",
-      &[&creation_time],
-    )
-    .await?
-    .get(0);
+    &[])
+    .await?;
 
   // return user
   Ok(User {
-    user_id,
-    creation_time,
+    user_id: row.get(0),
+    creation_time: row.get(1),
   })
 }
 

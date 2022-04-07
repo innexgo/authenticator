@@ -10,13 +10,13 @@ CREATE DATABASE auth;
 drop table if exists user_t cascade;
 create table user_t(
   user_id bigserial primary key,
-  creation_time bigint not null
+  creation_time bigint not null default extract(epoch from now()) * 1000,
 );
 
 drop table if exists user_data_t cascade;
 create table user_data_t(
   user_data_id bigserial primary key,
-  creation_time bigint not null,
+  creation_time bigint not null default extract(epoch from now()) * 1000,
   creator_user_id bigint not null references user_t(user_id),
   dateofbirth bigint not null,
   username text not null,
@@ -36,7 +36,7 @@ create view recent_user_data_v as
 drop table if exists verification_challenge_t cascade;
 create table verification_challenge_t(
   verification_challenge_key_hash text not null primary key,
-  creation_time bigint not null,
+  creation_time bigint not null default extract(epoch from now()) * 1000,
   creator_user_id bigint not null references user_t(user_id),
   to_parent bool not null,
   email text not null
@@ -45,7 +45,7 @@ create table verification_challenge_t(
 drop table if exists email_t cascade;
 create table email_t(
   email_id bigserial primary key,
-  creation_time bigint not null,
+  creation_time bigint not null default extract(epoch from now()) * 1000,
   verification_challenge_key_hash text not null references verification_challenge_t(verification_challenge_key_hash)
 );
 
@@ -75,14 +75,14 @@ create view recent_parent_email_v as
 drop table if exists password_reset_t cascade;
 create table password_reset_t(
   password_reset_key_hash text not null primary key,
-  creation_time bigint not null,
+  creation_time bigint not null default extract(epoch from now()) * 1000,
   creator_user_id bigint not null references user_t(user_id)
 );
 
 drop table if exists password_t cascade;
 create table password_t(
   password_id bigserial primary key,
-  creation_time bigint not null,
+  creation_time bigint not null default extract(epoch from now()) * 1000,
   creator_user_id bigint not null references user_t(user_id),
   password_hash text not null,
   password_reset_key_hash text references password_reset_t(password_reset_key_hash)  -- only valid if change was made by RESET
@@ -101,7 +101,7 @@ create view recent_password_v as
 drop table if exists api_key_t cascade;
 create table api_key_t(
   api_key_id bigserial primary key,
-  creation_time bigint not null,
+  creation_time bigint not null default extract(epoch from now()) * 1000,
   creator_user_id bigint not null references user_t(user_id),
   api_key_hash text not null,
   api_key_kind bigint not null, -- VALID, NO_EMAIL, NO_PARENT, CANCEL

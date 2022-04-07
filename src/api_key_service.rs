@@ -1,5 +1,4 @@
 use super::db_types::*;
-use super::utils::current_time_millis;
 use std::convert::TryInto;
 use tokio_postgres::GenericClient;
 
@@ -27,36 +26,31 @@ pub async fn add(
   api_key_kind: auth_service_api::request::ApiKeyKind,
   duration: i64,
 ) -> Result<ApiKey, tokio_postgres::Error> {
-  let creation_time = current_time_millis();
-
-  let api_key_id = con
+  let row = con
     .query_one(
       "INSERT INTO
        api_key_t(
-           creation_time,
            creator_user_id,
            api_key_hash,
            api_key_kind,
            duration
        )
-       VALUES($1, $2, $3, $4, $5)
-       RETURNING api_key_id
+       VALUES($1, $2, $3, $4)
+       RETURNING api_key_id, creation_time
       ",
       &[
-        &creation_time,
         &creator_user_id,
         &api_key_hash,
         &(api_key_kind.clone() as i64),
         &duration,
       ],
     )
-    .await?
-    .get(0);
+    .await?;
 
   // return api_key
   Ok(ApiKey {
-    api_key_id,
-    creation_time,
+    api_key_id: row.get(0),
+    creation_time: row.get(1),
     creator_user_id,
     api_key_hash,
     api_key_kind,

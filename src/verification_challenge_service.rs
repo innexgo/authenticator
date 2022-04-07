@@ -1,5 +1,4 @@
 use super::db_types::VerificationChallenge;
-use super::utils::current_time_millis;
 use tokio_postgres::GenericClient;
 
 impl From<tokio_postgres::row::Row> for VerificationChallenge {
@@ -22,24 +21,20 @@ pub async fn add(
   creator_user_id: i64,
   to_parent: bool,
 ) -> Result<VerificationChallenge, tokio_postgres::Error> {
-  let creation_time = current_time_millis();
-
-  con
-    .execute(
+   let row = con
+    .query_one(
       "
       INSERT INTO
       verification_challenge_t(
           verification_challenge_key_hash,
-          creation_time,
           creator_user_id,
           to_parent,
           email
       )
-      VALUES($1, $2, $3, $4, $5)
+      VALUES($1, $2, $3, $4)
       ",
       &[
         &verification_challenge_key_hash,
-        &creation_time,
         &creator_user_id,
         &to_parent,
         &email,
@@ -49,7 +44,7 @@ pub async fn add(
 
   Ok(VerificationChallenge {
     verification_challenge_key_hash,
-    creation_time,
+    creation_time: row.get(0),
     creator_user_id,
     to_parent,
     email,

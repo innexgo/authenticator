@@ -1,5 +1,4 @@
 use super::db_types::*;
-use super::utils::current_time_millis;
 use tokio_postgres::GenericClient;
 
 impl From<tokio_postgres::row::Row> for Password {
@@ -21,33 +20,28 @@ pub async fn add(
   password_hash: String,
   password_reset_key_hash: Option<String>,
 ) -> Result<Password, tokio_postgres::Error> {
-  let creation_time = current_time_millis();
-
-  let password_id = con
+  let row = con
     .query_one(
       "INSERT INTO
        password_t(
-         creation_time,
          creator_user_id,
          password_hash,
          password_reset_key_hash
        )
        VALUES ($1, $2, $3, $4)
-       RETURNING password_id
+       RETURNING password_id, creation_time
       ",
       &[
-        &creation_time,
         &creator_user_id,
         &password_hash,
         &password_reset_key_hash,
       ],
-    ).await?
-    .get(0);
+    ).await?;
 
   // return password
   Ok(Password {
-    password_id,
-    creation_time,
+    password_id: row.get(0),
+    creation_time: row.get(1),
     creator_user_id,
     password_hash,
     password_reset_key_hash,
