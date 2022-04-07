@@ -32,6 +32,7 @@ pub async fn add(
           email
       )
       VALUES($1, $2, $3, $4)
+      RETURNING creation_time
       ",
       &[
         &verification_challenge_key_hash,

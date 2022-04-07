@@ -10,7 +10,7 @@ CREATE DATABASE auth;
 drop table if exists user_t cascade;
 create table user_t(
   user_id bigserial primary key,
-  creation_time bigint not null default extract(epoch from now()) * 1000,
+  creation_time bigint not null default extract(epoch from now()) * 1000
 );
 
 drop table if exists user_data_t cascade;
