@@ -24,13 +24,13 @@ create table user_data_t(
 );
 
 create view recent_user_data_v as
+  with maxids as (
+    select max(user_data_id) id 
+    from user_data_t 
+    group by creator_user_id
+  )
   select ud.* from user_data_t ud
-  inner join (
-   select max(user_data_id) id 
-   from user_data_t 
-   group by creator_user_id
-  ) maxids
-  on maxids.id = ud.user_data_id;
+  inner join maxids on maxids.id = ud.user_data_id;
 
 
 drop table if exists verification_challenge_t cascade;
