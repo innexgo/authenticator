@@ -9,13 +9,13 @@ edition = "2021"
 rand = "0.8.5"
 tokio-postgres = "0.7.7"
 rust-argon2 = "1.0.0"
-sha2 = "0.10.2"
-reqwest = { version = "0.11.11", features = ["json"] }
-warp = "0.3.2"
-clap = { version = "3.2.17", features = ["derive"] }
-tokio = { version = "1.20.1", features = ["full"] }
-serde = { version = "1.0.144", features = ["derive"] }
-serde_json = "1.0.85"
+sha2 = "0.10.6"
+reqwest = { version = "0.11.13", features = ["json"] }
+warp = "0.3.3"
+clap = { version = "4.0.27", features = ["derive"] }
+tokio = { version = "1.22.0", features = ["full"] }
+serde = { version = "1.0.147", features = ["derive"] }
+serde_json = "1.0.89"
 auth-service-api = {version = "*", git = "https://github.com/innexgo/auth-service-api" }
 mail-service-api = {version = "*", git = "https://github.com/innexgo/mail-service-api", features=["client"]}
 base64-url = "1.4.13"

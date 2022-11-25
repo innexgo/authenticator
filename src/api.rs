@@ -27,7 +27,7 @@ pub fn api(
     config: Config,
     db: Db,
     mail_service: MailService,
-) -> impl Filter<Extract = impl warp::Reply, Error = Infallible> + Clone {
+) -> impl Filter<Extract = (impl warp::Reply,), Error = Infallible> + Clone {
     // public API
     api_info()
         .or(combine!(
@@ -155,7 +155,7 @@ pub fn api(
         .recover(handle_rejection)
 }
 
-fn api_info() -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
+fn api_info() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
     let mut info = HashMap::new();
     info.insert("version", "0.1");
     info.insert("name", SERVICE_NAME);
