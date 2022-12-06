@@ -12,9 +12,9 @@ rust-argon2 = "1.0.0"
 sha2 = "0.10.6"
 reqwest = { version = "0.11.13", features = ["json"] }
 warp = "0.3.3"
-clap = { version = "4.0.27", features = ["derive"] }
-tokio = { version = "1.22.0", features = ["full"] }
-serde = { version = "1.0.147", features = ["derive"] }
+clap = { version = "4.0.29", features = ["derive"] }
+tokio = { version = "1.23.0", features = ["full"] }
+serde = { version = "1.0.149", features = ["derive"] }
 serde_json = "1.0.89"
 auth-service-api = {version = "*", git = "https://github.com/innexgo/auth-service-api" }
 mail-service-api = {version = "*", git = "https://github.com/innexgo/mail-service-api", features=["client"]}
