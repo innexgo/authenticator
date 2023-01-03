@@ -48,8 +48,8 @@ fn report_mail_err(e: MailError) -> response::AuthError {
   };
 
   utils::log(utils::Event {
-    msg: ae.as_ref().to_owned(),
-    source: Some(format!("email service: {}", e.as_ref())),
+    msg: ae.to_string(),
+    source: Some(format!("email service: {}", e)),
     severity: utils::SeverityKind::Error,
   });
 
