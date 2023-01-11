@@ -23,6 +23,9 @@ mod user_service;
 mod verification_challenge_service;
 
 static SERVICE_NAME: &str = "auth-service";
+static VERSION_MAJOR:i64 = 0;
+static VERSION_MINOR:i64 = 0;
+static VERSION_REV:i64 = 1;
 
 #[derive(Parser, Clone)]
 #[clap(about, version, author)]

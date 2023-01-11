@@ -2,10 +2,8 @@ use super::handlers;
 use super::utils;
 use super::Config;
 use super::Db;
-use super::SERVICE_NAME;
 use auth_service_api::response::AuthError;
 use mail_service_api::client::MailService;
-use std::collections::HashMap;
 use std::convert::Infallible;
 use std::future::Future;
 use warp::http::StatusCode;
@@ -29,7 +27,7 @@ pub fn api(
     mail_service: MailService,
 ) -> impl Filter<Extract = (impl warp::Reply,), Error = Infallible> + Clone {
     // public API
-    api_info()
+    api_info(config.clone())
         .or(combine!(
             adapter(
                 config.clone(),
@@ -155,10 +153,16 @@ pub fn api(
         .recover(handle_rejection)
 }
 
-fn api_info() -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
-    let mut info = HashMap::new();
-    info.insert("version", "0.1");
-    info.insert("name", SERVICE_NAME);
+fn api_info(
+    config: Config,
+) -> impl Filter<Extract = (impl warp::Reply,), Error = warp::Rejection> + Clone {
+    let info = auth_service_api::response::Info {
+        service: String::from(crate::SERVICE_NAME),
+        version_major: crate::VERSION_MAJOR,
+        version_minor: crate::VERSION_MINOR,
+        version_rev: crate::VERSION_REV,
+        site_external_url: config.site_external_url,
+    };
     warp::path!("public" / "info").map(move || warp::reply::json(&info))
 }
 
@@ -226,10 +230,7 @@ async fn handle_rejection(err: warp::Rejection) -> Result<impl warp::Reply, Infa
         message = AuthError::Unknown;
     }
 
-    Ok(warp::reply::with_status(
-        warp::reply::json(&message),
-        code,
-    ))
+    Ok(warp::reply::with_status(warp::reply::json(&message), code))
 }
 
 // This type represents errors that we can generate
