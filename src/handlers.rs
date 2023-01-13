@@ -1,7 +1,6 @@
 use std::error::Error;
 
-use super::Config;
-use super::Db;
+use super::Data;
 use auth_service_api::request;
 use auth_service_api::response;
 
@@ -206,12 +205,10 @@ pub async fn get_api_key_if_valid(
 }
 
 pub async fn api_key_new_with_email(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::ApiKeyNewWithEmailProps,
 ) -> Result<response::ApiKey, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     let email = email_service::get_by_own_email(con, &props.email)
         .await
@@ -237,12 +234,10 @@ pub async fn api_key_new_with_email(
 }
 
 pub async fn api_key_new_with_username(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::ApiKeyNewWithUsernameProps,
 ) -> Result<response::ApiKey, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     let userdata = user_data_service::get_by_username(con, &props.username)
         .await
@@ -312,12 +307,10 @@ pub async fn internal_api_key_new_valid(
 }
 
 pub async fn api_key_new_cancel(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::ApiKeyNewCancelProps,
 ) -> Result<response::ApiKey, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     // validate api key
     let creator_key = get_api_key_if_valid(con, &props.api_key).await?;
@@ -415,9 +408,7 @@ pub async fn send_email_verification_email(
 }
 
 pub async fn verification_challenge_new(
-    config: Config,
-    db: Db,
-    mail_service: MailService,
+    data: Data,
     props: request::VerificationChallengeNewProps,
 ) -> Result<response::VerificationChallenge, response::AuthError> {
     // avoid sending email to obviously bad addresses
@@ -425,7 +416,7 @@ pub async fn verification_challenge_new(
         return Err(response::AuthError::EmailBounced);
     }
 
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     // you need to have an account but its fine not to be verified yet
     let api_key = get_api_key_if_current_noverify(con, &props.api_key).await?;
@@ -458,19 +449,19 @@ pub async fn verification_challenge_new(
     // send email depending on kind
     if props.to_parent {
         send_parent_permission_email(
-            &mail_service,
+            &data.mail_service,
             &props.email,
             &user_data.realname,
-            &config.site_external_url,
+            &data.site_external_url,
             &verification_challenge_key,
         )
         .await?;
     } else {
         send_email_verification_email(
-            &mail_service,
+            &data.mail_service,
             &props.email,
             &user_data.realname,
-            &config.site_external_url,
+            &data.site_external_url,
             &verification_challenge_key,
         )
         .await?;
@@ -492,9 +483,7 @@ pub async fn verification_challenge_new(
 }
 
 pub async fn user_new(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::UserNewProps,
 ) -> Result<response::ApiKey, response::AuthError> {
     if !utils::is_realname_valid(&props.realname) {
@@ -510,7 +499,7 @@ pub async fn user_new(
         return Err(response::AuthError::PasswordInsecure);
     }
 
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     let mut sp = con.transaction().await.map_err(report_postgres_err)?;
 
@@ -565,9 +554,7 @@ pub async fn user_new(
 }
 
 pub async fn user_data_new(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::UserDataNewProps,
 ) -> Result<response::UserData, response::AuthError> {
     // ensure names are valid
@@ -579,7 +566,7 @@ pub async fn user_data_new(
         return Err(response::AuthError::UserUsernameInvalid);
     }
 
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     // api key verification required (email or parent permission not needed)
     let creator_key = get_api_key_if_current_noverify(con, &props.api_key).await?;
@@ -616,12 +603,10 @@ pub async fn user_data_new(
 }
 
 pub async fn email_new(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::EmailNewProps,
 ) -> Result<response::Email, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     let vckh = utils::hash_str(&props.verification_challenge_key);
 
@@ -671,12 +656,10 @@ pub async fn email_new(
 }
 
 pub async fn password_reset_new(
-    config: Config,
-    db: Db,
-    mail_service: MailService,
+    data: Data,
     props: request::PasswordResetNewProps,
 ) -> Result<response::PasswordReset, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     let email = email_service::get_by_own_email(con, &props.email)
         .await
@@ -695,12 +678,13 @@ pub async fn password_reset_new(
     let raw_key = utils::gen_random_string();
 
     // send mail
-    let _ = mail_service
+    let _ = data
+        .mail_service
         .mail_new(mail_service_api::request::MailNewProps {
             request_id: 0,
             destination: props.email,
             topic: "password_reset".to_owned(),
-            title: format!("{}: Password Reset", &config.site_external_url),
+            title: format!("{}: Password Reset", &data.site_external_url),
             content: [
                 "<p>Requested password reset service: </p>",
                 "<p>If you did not make this request, then feel free to ignore.</p>",
@@ -708,7 +692,7 @@ pub async fn password_reset_new(
                 "<p>Do not share this link with others.</p>",
                 &format!(
                     "<p>Password change link: {}/reset_password?resetKey={}</p>",
-                    &config.site_external_url, raw_key
+                    &data.site_external_url, raw_key
                 ),
             ]
             .join(""),
@@ -733,14 +717,12 @@ pub async fn password_reset_new(
 }
 
 pub async fn password_new_reset(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::PasswordNewResetProps,
 ) -> Result<response::Password, response::AuthError> {
     // no api key verification needed
 
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     // get password reset
     let psr = password_reset_service::get_by_password_reset_key_hash(
@@ -791,12 +773,10 @@ pub async fn password_new_reset(
 }
 
 pub async fn password_new_change(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::PasswordNewChangeProps,
 ) -> Result<response::Password, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     // api key verification required (no parent permission needed tho)
     let creator_key = get_api_key_if_current_noverify(con, &props.api_key).await?;
@@ -829,12 +809,10 @@ pub async fn password_new_change(
 }
 
 pub async fn user_view(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::UserViewProps,
 ) -> Result<Vec<response::User>, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
     // api key verification required
     let _ = get_api_key_if_current_noverify(con, &props.api_key).await?;
     // get users
@@ -851,12 +829,10 @@ pub async fn user_view(
 }
 
 pub async fn user_data_view(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::UserDataViewProps,
 ) -> Result<Vec<response::UserData>, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
     // api key verification required
     let _ = get_api_key_if_current_noverify(con, &props.api_key).await?;
     // get user_datas
@@ -873,12 +849,10 @@ pub async fn user_data_view(
 }
 
 pub async fn email_view(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::EmailViewProps,
 ) -> Result<Vec<response::Email>, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
     // api key verification required
     let _ = get_api_key_if_current_noverify(con, &props.api_key).await?;
     // get emails
@@ -896,12 +870,10 @@ pub async fn email_view(
 }
 
 pub async fn password_view(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::PasswordViewProps,
 ) -> Result<Vec<response::Password>, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
     // api key verification required
     let _ = get_api_key_if_current_noverify(con, &props.api_key).await?;
     // get passwords
@@ -919,12 +891,10 @@ pub async fn password_view(
 }
 
 pub async fn api_key_view(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::ApiKeyViewProps,
 ) -> Result<Vec<response::ApiKey>, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
     // api key verification required
     let _ = get_api_key_if_current_noverify(con, &props.api_key).await?;
     // get users
@@ -943,12 +913,10 @@ pub async fn api_key_view(
 
 // special internal api
 pub async fn get_user_by_id(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::GetUserByIdProps,
 ) -> Result<response::User, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     let user = user_service::get_by_user_id(con, props.user_id)
         .await
@@ -959,12 +927,10 @@ pub async fn get_user_by_id(
 }
 
 pub async fn get_user_by_api_key_if_valid(
-    _config: Config,
-    db: Db,
-    _mail_service: MailService,
+    data: Data,
     props: request::GetUserByApiKeyIfValid,
 ) -> Result<response::User, response::AuthError> {
-    let con = &mut *db.lock().await;
+    let con = &mut *data.db.lock().await;
 
     let api_key = get_api_key_if_valid(con, &props.api_key).await?;
 
