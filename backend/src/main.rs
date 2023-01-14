@@ -1,15 +1,15 @@
+use actix_cors::Cors;
+use actix_web::{middleware, web, App, HttpServer};
 use clap::Parser;
-use std::error::Error;
+use std::net::Ipv4Addr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio_postgres::{Client, NoTls};
-use warp::Filter;
 
 use mail_service_api::client::MailService;
 
 mod utils;
 
-mod api;
 mod db_types;
 mod handlers;
 
@@ -51,7 +51,9 @@ pub struct Data {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), tokio_postgres::Error> {
+async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
+    env_logger::init();
+
     let Opts {
         port,
         database_url,
@@ -63,11 +65,9 @@ async fn main() -> Result<(), tokio_postgres::Error> {
     let (client, connection) = loop {
         match tokio_postgres::connect(&database_url, NoTls).await {
             Ok(v) => break v,
-            Err(e) => utils::log(utils::Event {
-                msg: e.to_string(),
-                source: e.source().map(|x| x.to_string()),
-                severity: utils::SeverityKind::Error,
-            }),
+            Err(e) => {
+                log::error!("{}", e);
+            }
         }
 
         // sleep for 5 seconds
@@ -89,18 +89,74 @@ async fn main() -> Result<(), tokio_postgres::Error> {
         site_external_url,
     };
 
-    let api = api::api(data);
+    HttpServer::new(move || {
+        let cors = Cors::permissive();
 
-    let log = warp::log::custom(|info| {
-        // Use a log macro, or slog, or println, or whatever!
-        utils::log(utils::Event {
-            msg: info.method().to_string(),
-            source: Some(info.path().to_string()),
-            severity: utils::SeverityKind::Info,
-        });
-    });
-
-    warp::serve(api.with(log)).run(([0, 0, 0, 0], port)).await;
+        App::new()
+            .wrap(middleware::Logger::default())
+            .wrap(cors)
+            .app_data(actix_web::web::Data::new(data.clone()))
+            .service(web::resource("/public/info").route(web::route().to(handlers::info)))
+            .service(
+                web::resource("/public/verification_challenge/new")
+                    .route(web::route().to(handlers::verification_challenge_new)),
+            )
+            .service(
+                web::resource("public/api_key/new_with_email")
+                    .route(web::route().to(handlers::api_key_new_with_email)),
+            )
+            .service(
+                web::resource("public/api_key/new_with_username")
+                    .route(web::route().to(handlers::api_key_new_with_username)),
+            )
+            .service(
+                web::resource("public/api_key/new_cancel")
+                    .route(web::route().to(handlers::api_key_new_cancel)),
+            )
+            .service(web::resource("public/user/new").route(web::route().to(handlers::user_new)))
+            .service(
+                web::resource("public/user_data/new")
+                    .route(web::route().to(handlers::user_data_new)),
+            )
+            .service(web::resource("public/email/new").route(web::route().to(handlers::email_new)))
+            .service(
+                web::resource("public/password_reset/new")
+                    .route(web::route().to(handlers::password_reset_new)),
+            )
+            .service(
+                web::resource("public/password/new_reset")
+                    .route(web::route().to(handlers::password_new_reset)),
+            )
+            .service(
+                web::resource("public/password/new_change")
+                    .route(web::route().to(handlers::password_new_change)),
+            )
+            .service(web::resource("public/user/view").route(web::route().to(handlers::user_view)))
+            .service(
+                web::resource("public/user_data/view")
+                    .route(web::route().to(handlers::user_data_view)),
+            )
+            .service(
+                web::resource("public/password/view")
+                    .route(web::route().to(handlers::password_view)),
+            )
+            .service(
+                web::resource("public/email/view").route(web::route().to(handlers::email_view)),
+            )
+            .service(
+                web::resource("public/api_key/view").route(web::route().to(handlers::api_key_view)),
+            )
+            .service(
+                web::resource("get_user_by_id").route(web::route().to(handlers::get_user_by_id)),
+            )
+            .service(
+                web::resource("get_user_by_api_key_if_valid")
+                    .route(web::route().to(handlers::get_user_by_api_key_if_valid)),
+            )
+    })
+    .bind((Ipv4Addr::LOCALHOST, port))?
+    .run()
+    .await?;
 
     Ok(())
 }

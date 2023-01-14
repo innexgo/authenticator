@@ -1,8 +1,14 @@
-use std::error::Error;
+use std::fmt::Display;
 
 use super::Data;
+use actix_web::web;
+use actix_web::HttpResponse;
+use actix_web::Responder;
+use actix_web::ResponseError;
 use auth_service_api::request;
 use auth_service_api::response;
+use auth_service_api::response::AuthError;
+use reqwest::StatusCode;
 
 use super::api_key_service;
 use super::db_types::*;
@@ -20,45 +26,62 @@ use mail_service_api::response::MailError;
 static FIFTEEN_MINUTES: i64 = 15 * 60 * 1000;
 static THIRTEEN_YEARS: i64 = (13.0 * 365.25 * 24.0 * 60.0 * 60.0 * 1000.0) as i64;
 
-fn report_internal_err<E: std::error::Error>(e: E) -> response::AuthError {
-    utils::log(utils::Event {
-        msg: e.to_string(),
-        source: e.source().map(|e| e.to_string()),
-        severity: utils::SeverityKind::Error,
-    });
-    response::AuthError::Unknown
+#[derive(Debug, Clone)]
+pub struct AppError(response::AuthError);
+
+fn report_internal_err<E: std::error::Error>(e: E) -> AppError {
+    log::error!("{}", e);
+    AppError(response::AuthError::Unknown)
 }
 
-fn report_postgres_err(e: tokio_postgres::Error) -> response::AuthError {
-    utils::log(utils::Event {
-        msg: e.to_string(),
-        source: e.source().map(|e| e.to_string()),
-        severity: utils::SeverityKind::Error,
-    });
-    response::AuthError::InternalServerError
+fn report_postgres_err(e: tokio_postgres::Error) -> AppError {
+    log::error!("{}", e);
+    AppError(response::AuthError::InternalServerError)
 }
 
-fn report_mail_err(e: MailError) -> response::AuthError {
+fn report_mail_err(e: MailError) -> AppError {
     let ae = match e {
         MailError::DestinationBounced => response::AuthError::EmailBounced,
         MailError::DestinationProhibited => response::AuthError::EmailBounced,
         // TODO: log this
         _ => response::AuthError::InternalServerError,
     };
+    log::warn!("{}", e);
+    AppError(ae)
+}
 
-    utils::log(utils::Event {
-        msg: ae.to_string(),
-        source: Some(format!("email service: {}", e)),
-        severity: utils::SeverityKind::Error,
-    });
+impl Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
 
-    ae
+impl From<response::AuthError> for AppError {
+    fn from(value: response::AuthError) -> Self {
+        Self(value)
+    }
+}
+
+impl ResponseError for AppError {
+    fn error_response(&self) -> HttpResponse {
+        HttpResponse::build(self.status_code()).json(&self.0)
+    }
+    fn status_code(&self) -> StatusCode {
+        match self.0 {
+            AuthError::DecodeError => StatusCode::BAD_GATEWAY,
+            AuthError::InternalServerError => StatusCode::INTERNAL_SERVER_ERROR,
+            AuthError::ApiKeyUnauthorized => StatusCode::UNAUTHORIZED,
+            AuthError::BadRequest => StatusCode::BAD_REQUEST,
+            AuthError::NotFound => StatusCode::NOT_FOUND,
+            _ => StatusCode::INTERNAL_SERVER_ERROR,
+        }
+    }
 }
 
 async fn fill_user(
     _con: &mut tokio_postgres::Client,
     user: User,
-) -> Result<response::User, response::AuthError> {
+) -> Result<response::User, AppError> {
     Ok(response::User {
         user_id: user.user_id,
         creation_time: user.creation_time,
@@ -68,7 +91,7 @@ async fn fill_user(
 async fn fill_user_data(
     _con: &mut tokio_postgres::Client,
     user_data: UserData,
-) -> Result<response::UserData, response::AuthError> {
+) -> Result<response::UserData, AppError> {
     Ok(response::UserData {
         user_data_id: user_data.user_data_id,
         creation_time: user_data.creation_time,
@@ -83,7 +106,7 @@ async fn fill_api_key(
     _con: &mut tokio_postgres::Client,
     api_key: ApiKey,
     key: Option<String>,
-) -> Result<response::ApiKey, response::AuthError> {
+) -> Result<response::ApiKey, AppError> {
     Ok(response::ApiKey {
         api_key_id: api_key.api_key_id,
         creation_time: api_key.creation_time,
@@ -97,7 +120,7 @@ async fn fill_api_key(
 async fn fill_email(
     con: &mut tokio_postgres::Client,
     email: Email,
-) -> Result<response::Email, response::AuthError> {
+) -> Result<response::Email, AppError> {
     let verification_challenge =
         verification_challenge_service::get_by_verification_challenge_key_hash(
             con,
@@ -117,7 +140,7 @@ async fn fill_email(
 async fn fill_password(
     con: &mut tokio_postgres::Client,
     password: Password,
-) -> Result<response::Password, response::AuthError> {
+) -> Result<response::Password, AppError> {
     let password_reset = match password.password_reset_key_hash {
         Some(password_reset_key_hash) => {
             let password_reset = password_reset_service::get_by_password_reset_key_hash(
@@ -143,7 +166,7 @@ async fn fill_password(
 async fn fill_password_reset(
     _con: &tokio_postgres::Client,
     password_reset: PasswordReset,
-) -> Result<response::PasswordReset, response::AuthError> {
+) -> Result<response::PasswordReset, AppError> {
     Ok(response::PasswordReset {
         creation_time: password_reset.creation_time,
     })
@@ -152,7 +175,7 @@ async fn fill_password_reset(
 async fn fill_verification_challenge(
     _con: &tokio_postgres::Client,
     verification_challenge: VerificationChallenge,
-) -> Result<response::VerificationChallenge, response::AuthError> {
+) -> Result<response::VerificationChallenge, AppError> {
     Ok(response::VerificationChallenge {
         creation_time: verification_challenge.creation_time,
         to_parent: verification_challenge.to_parent,
@@ -164,14 +187,14 @@ async fn fill_verification_challenge(
 pub async fn get_api_key_if_current_noverify(
     con: &mut tokio_postgres::Client,
     api_key: &str,
-) -> Result<ApiKey, response::AuthError> {
+) -> Result<ApiKey, AppError> {
     let creator_api_key = api_key_service::get_by_api_key_hash(con, &utils::hash_str(api_key))
         .await
         .map_err(report_postgres_err)?
         .ok_or(response::AuthError::ApiKeyNonexistent)?;
 
     if utils::current_time_millis() > creator_api_key.creation_time + creator_api_key.duration {
-        return Err(response::AuthError::ApiKeyUnauthorized);
+        Err(response::AuthError::ApiKeyUnauthorized)?;
     }
 
     // ensure is valid, noemail, or noparent
@@ -179,7 +202,7 @@ pub async fn get_api_key_if_current_noverify(
         request::ApiKeyKind::Valid => Ok(creator_api_key),
         request::ApiKeyKind::NoEmail => Ok(creator_api_key),
         request::ApiKeyKind::NoParent => Ok(creator_api_key),
-        _ => Err(response::AuthError::ApiKeyUnauthorized),
+        _ => Err(response::AuthError::ApiKeyUnauthorized)?,
     }
 }
 
@@ -187,27 +210,39 @@ pub async fn get_api_key_if_current_noverify(
 pub async fn get_api_key_if_valid(
     con: &mut tokio_postgres::Client,
     api_key: &str,
-) -> Result<ApiKey, response::AuthError> {
+) -> Result<ApiKey, AppError> {
     let creator_api_key = api_key_service::get_by_api_key_hash(con, &utils::hash_str(api_key))
         .await
         .map_err(report_postgres_err)?
         .ok_or(response::AuthError::ApiKeyNonexistent)?;
 
     if utils::current_time_millis() > creator_api_key.creation_time + creator_api_key.duration {
-        return Err(response::AuthError::ApiKeyUnauthorized);
+        Err(response::AuthError::ApiKeyUnauthorized)?;
     }
 
     // ensure is valid
     match creator_api_key.api_key_kind {
         request::ApiKeyKind::Valid => Ok(creator_api_key),
-        _ => Err(response::AuthError::ApiKeyUnauthorized),
+        _ => Err(response::AuthError::ApiKeyUnauthorized)?,
     }
 }
 
+// respond with info about stuff
+pub async fn info(data: web::Data<Data>) -> Result<impl Responder, AppError> {
+    return Ok(web::Json(response::Info {
+        service: String::from(crate::SERVICE_NAME),
+        version_major: crate::VERSION_MAJOR,
+        version_minor: crate::VERSION_MINOR,
+        version_rev: crate::VERSION_REV,
+        site_external_url: data.site_external_url.clone(),
+        permitted_sources: data.permitted_sources.clone(),
+    }));
+}
+
 pub async fn api_key_new_with_email(
-    data: Data,
-    props: request::ApiKeyNewWithEmailProps,
-) -> Result<response::ApiKey, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::ApiKeyNewWithEmailProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
 
     let email = email_service::get_by_own_email(con, &props.email)
@@ -230,13 +265,13 @@ pub async fn api_key_new_with_email(
         .ok_or(response::AuthError::UserNonexistent)?;
 
     // now delegate
-    internal_api_key_new_valid(con, userdata, props.password, props.duration).await
+    internal_api_key_new_valid(con, userdata, props.password.clone(), props.duration).await
 }
 
 pub async fn api_key_new_with_username(
-    data: Data,
-    props: request::ApiKeyNewWithUsernameProps,
-) -> Result<response::ApiKey, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::ApiKeyNewWithUsernameProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
 
     let userdata = user_data_service::get_by_username(con, &props.username)
@@ -245,7 +280,7 @@ pub async fn api_key_new_with_username(
         .ok_or(response::AuthError::UserNonexistent)?;
 
     // now delegate
-    internal_api_key_new_valid(con, userdata, props.password, props.duration).await
+    internal_api_key_new_valid(con, userdata, props.password.clone(), props.duration).await
 }
 
 pub async fn internal_api_key_new_valid(
@@ -253,7 +288,7 @@ pub async fn internal_api_key_new_valid(
     user_data: UserData,
     user_password: String,
     duration: i64,
-) -> Result<response::ApiKey, response::AuthError> {
+) -> Result<impl Responder, AppError> {
     // get user password
     let password = password_service::get_by_user_id(con, user_data.creator_user_id)
         .await
@@ -264,7 +299,7 @@ pub async fn internal_api_key_new_valid(
     if !utils::verify_password(&user_password, &password.password_hash)
         .map_err(report_internal_err)?
     {
-        return Err(response::AuthError::PasswordIncorrect);
+        Err(response::AuthError::PasswordIncorrect)?;
     }
 
     let verification_status = if email_service::get_own_by_user_id(con, user_data.creator_user_id)
@@ -303,13 +338,15 @@ pub async fn internal_api_key_new_valid(
 
     sp.commit().await.map_err(report_postgres_err)?;
 
-    fill_api_key(con, api_key, Some(raw_api_key)).await
+    Ok(web::Json(
+        fill_api_key(con, api_key, Some(raw_api_key)).await?,
+    ))
 }
 
 pub async fn api_key_new_cancel(
-    data: Data,
-    props: request::ApiKeyNewCancelProps,
-) -> Result<response::ApiKey, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::ApiKeyNewCancelProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
 
     // validate api key
@@ -318,7 +355,7 @@ pub async fn api_key_new_cancel(
     let to_cancel_key = get_api_key_if_valid(con, &props.api_key_to_cancel).await?;
 
     if creator_key.creator_user_id != to_cancel_key.creator_user_id {
-        return Err(response::AuthError::ApiKeyUnauthorized);
+        Err(response::AuthError::ApiKeyUnauthorized)?;
     }
 
     let mut sp = con.transaction().await.map_err(report_postgres_err)?;
@@ -337,7 +374,7 @@ pub async fn api_key_new_cancel(
     sp.commit().await.map_err(report_postgres_err)?;
 
     // return json
-    fill_api_key(con, key_cancel, None).await
+    Ok(web::Json(fill_api_key(con, key_cancel, None).await?))
 }
 
 pub async fn send_parent_permission_email(
@@ -346,7 +383,7 @@ pub async fn send_parent_permission_email(
     user_name: &str,
     site_external_url: &str,
     verification_challenge_key: &str,
-) -> Result<(), response::AuthError> {
+) -> Result<(), AppError> {
     let _ = mail_service
         .mail_new(mail_service_api::request::MailNewProps {
             request_id: 0,
@@ -380,7 +417,7 @@ pub async fn send_email_verification_email(
     user_name: &str,
     site_external_url: &str,
     verification_challenge_key: &str,
-) -> Result<(), response::AuthError> {
+) -> Result<(), AppError> {
     let _ = mail_service
         .mail_new(mail_service_api::request::MailNewProps {
             request_id: 0,
@@ -408,12 +445,12 @@ pub async fn send_email_verification_email(
 }
 
 pub async fn verification_challenge_new(
-    data: Data,
-    props: request::VerificationChallengeNewProps,
-) -> Result<response::VerificationChallenge, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::VerificationChallengeNewProps>,
+) -> Result<impl Responder, AppError> {
     // avoid sending email to obviously bad addresses
     if props.email.is_empty() {
-        return Err(response::AuthError::EmailBounced);
+        Err(response::AuthError::EmailBounced)?;
     }
 
     let con = &mut *data.db.lock().await;
@@ -434,7 +471,7 @@ pub async fn verification_challenge_new(
     // limit to 4 emails in past 15 minutes
     if num_emails > 4 {
         // TODO: more descriptive error
-        return Err(response::AuthError::EmailCooldown);
+        Err(response::AuthError::EmailCooldown)?;
     }
 
     // get user data to generate
@@ -471,7 +508,7 @@ pub async fn verification_challenge_new(
     let verification_challenge = verification_challenge_service::add(
         con,
         utils::hash_str(&verification_challenge_key),
-        props.email,
+        props.email.clone(),
         api_key.creator_user_id,
         props.to_parent,
     )
@@ -479,24 +516,26 @@ pub async fn verification_challenge_new(
     .map_err(report_postgres_err)?;
 
     // return json
-    fill_verification_challenge(con, verification_challenge).await
+    Ok(web::Json(
+        fill_verification_challenge(con, verification_challenge).await?,
+    ))
 }
 
 pub async fn user_new(
-    data: Data,
-    props: request::UserNewProps,
-) -> Result<response::ApiKey, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::UserNewProps>,
+) -> Result<impl Responder, AppError> {
     if !utils::is_realname_valid(&props.realname) {
-        return Err(response::AuthError::UserRealnameInvalid);
+        Err(response::AuthError::UserRealnameInvalid)?;
     }
 
     if !utils::is_username_valid(&props.username) {
-        return Err(response::AuthError::UserUsernameInvalid);
+        Err(response::AuthError::UserUsernameInvalid)?;
     }
 
     // server side validation of password strength
     if !utils::is_secure_password(&props.password) {
-        return Err(response::AuthError::PasswordInsecure);
+        Err(response::AuthError::PasswordInsecure)?;
     }
 
     let con = &mut *data.db.lock().await;
@@ -509,7 +548,7 @@ pub async fn user_new(
         .map_err(report_postgres_err)?
         .is_some()
     {
-        return Err(response::AuthError::UserUsernameTaken);
+        Err(response::AuthError::UserUsernameTaken)?;
     }
 
     // create user
@@ -522,8 +561,8 @@ pub async fn user_new(
         &mut sp,
         user.user_id,
         props.dateofbirth,
-        props.username,
-        props.realname,
+        props.username.clone(),
+        props.realname.clone(),
     )
     .await
     .map_err(report_postgres_err)?;
@@ -550,20 +589,22 @@ pub async fn user_new(
     sp.commit().await.map_err(report_postgres_err)?;
 
     // return api key
-    fill_api_key(con, api_key, Some(raw_api_key)).await
+    Ok(web::Json(
+        fill_api_key(con, api_key, Some(raw_api_key)).await?,
+    ))
 }
 
 pub async fn user_data_new(
-    data: Data,
-    props: request::UserDataNewProps,
-) -> Result<response::UserData, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::UserDataNewProps>,
+) -> Result<impl Responder, AppError> {
     // ensure names are valid
     if !utils::is_realname_valid(&props.realname) {
-        return Err(response::AuthError::UserRealnameInvalid);
+        Err(response::AuthError::UserRealnameInvalid)?;
     }
 
     if !utils::is_username_valid(&props.username) {
-        return Err(response::AuthError::UserUsernameInvalid);
+        Err(response::AuthError::UserUsernameInvalid)?;
     }
 
     let con = &mut *data.db.lock().await;
@@ -584,7 +625,7 @@ pub async fn user_data_new(
     };
 
     if !username_not_taken {
-        return Err(response::AuthError::UserUsernameTaken);
+        Err(response::AuthError::UserUsernameTaken)?;
     }
 
     // create key data
@@ -592,20 +633,20 @@ pub async fn user_data_new(
         con,
         creator_key.creator_user_id,
         props.dateofbirth,
-        props.username,
-        props.realname,
+        props.username.clone(),
+        props.realname.clone(),
     )
     .await
     .map_err(report_postgres_err)?;
 
     // return json
-    fill_user_data(con, user_data).await
+    Ok(web::Json(fill_user_data(con, user_data).await?))
 }
 
 pub async fn email_new(
-    data: Data,
-    props: request::EmailNewProps,
-) -> Result<response::Email, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::EmailNewProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
 
     let vckh = utils::hash_str(&props.verification_challenge_key);
@@ -618,12 +659,12 @@ pub async fn email_new(
 
     // check that it hasn't timed out
     if FIFTEEN_MINUTES as i64 + vc.creation_time < utils::current_time_millis() {
-        return Err(response::AuthError::VerificationChallengeTimedOut);
+        Err(response::AuthError::VerificationChallengeTimedOut)?;
     }
 
     // check that the verification challenge is meant for the correct purpose
     if vc.to_parent != props.to_parent {
-        return Err(response::AuthError::VerificationChallengeWrongKind);
+        Err(response::AuthError::VerificationChallengeWrongKind)?;
     }
 
     // check if the verification challenge was not already used to make a new email
@@ -632,7 +673,7 @@ pub async fn email_new(
         .map_err(report_postgres_err)?
         .is_some()
     {
-        return Err(response::AuthError::VerificationChallengeUsed);
+        Err(response::AuthError::VerificationChallengeUsed)?;
     }
 
     // (if not parent) check that the email isn't already in use by another user
@@ -642,7 +683,7 @@ pub async fn email_new(
             .map_err(report_postgres_err)?
             .is_some()
         {
-            return Err(response::AuthError::EmailExistent);
+            Err(response::AuthError::EmailExistent)?;
         }
     }
 
@@ -652,13 +693,13 @@ pub async fn email_new(
         .map_err(report_postgres_err)?;
 
     // return json
-    fill_email(con, email).await
+    Ok(web::Json(fill_email(con, email).await?))
 }
 
 pub async fn password_reset_new(
-    data: Data,
-    props: request::PasswordResetNewProps,
-) -> Result<response::PasswordReset, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::PasswordResetNewProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
 
     let email = email_service::get_by_own_email(con, &props.email)
@@ -682,7 +723,7 @@ pub async fn password_reset_new(
         .mail_service
         .mail_new(mail_service_api::request::MailNewProps {
             request_id: 0,
-            destination: props.email,
+            destination: props.email.clone(),
             topic: "password_reset".to_owned(),
             title: format!("{}: Password Reset", &data.site_external_url),
             content: [
@@ -713,13 +754,13 @@ pub async fn password_reset_new(
     sp.commit().await.map_err(report_postgres_err)?;
 
     // fill struct
-    fill_password_reset(con, password_reset).await
+    Ok(web::Json(fill_password_reset(con, password_reset).await?))
 }
 
 pub async fn password_new_reset(
-    data: Data,
-    props: request::PasswordNewResetProps,
-) -> Result<response::Password, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::PasswordNewResetProps>,
+) -> Result<impl Responder, AppError> {
     // no api key verification needed
 
     let con = &mut *data.db.lock().await;
@@ -738,17 +779,17 @@ pub async fn password_new_reset(
         .await
         .map_err(report_postgres_err)?
     {
-        return Err(response::AuthError::PasswordExistent);
+        Err(response::AuthError::PasswordExistent)?;
     }
 
     // deny if timed out
     if FIFTEEN_MINUTES as i64 + psr.creation_time < utils::current_time_millis() {
-        return Err(response::AuthError::PasswordResetTimedOut);
+        Err(response::AuthError::PasswordResetTimedOut)?;
     }
 
     // reject insecure passwords
     if !utils::is_secure_password(&props.new_password) {
-        return Err(response::AuthError::PasswordInsecure);
+        Err(response::AuthError::PasswordInsecure)?;
     }
 
     // attempt to hash password
@@ -769,13 +810,13 @@ pub async fn password_new_reset(
 
     sp.commit().await.map_err(report_postgres_err)?;
 
-    fill_password(con, password).await
+    Ok(web::Json(fill_password(con, password).await?))
 }
 
 pub async fn password_new_change(
-    data: Data,
-    props: request::PasswordNewChangeProps,
-) -> Result<response::Password, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::PasswordNewChangeProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
 
     // api key verification required (no parent permission needed tho)
@@ -783,7 +824,7 @@ pub async fn password_new_change(
 
     // reject insecure passwords
     if !utils::is_secure_password(&props.new_password) {
-        return Err(response::AuthError::PasswordInsecure);
+        Err(response::AuthError::PasswordInsecure)?;
     }
 
     // attempt to hash password
@@ -805,18 +846,18 @@ pub async fn password_new_change(
     sp.commit().await.map_err(report_postgres_err)?;
 
     // return filled struct
-    fill_password(con, password).await
+    Ok(web::Json(fill_password(con, password).await?))
 }
 
 pub async fn user_view(
-    data: Data,
-    props: request::UserViewProps,
-) -> Result<Vec<response::User>, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::UserViewProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
     // api key verification required
     let _ = get_api_key_if_current_noverify(con, &props.api_key).await?;
     // get users
-    let users = user_service::query(con, props)
+    let users = user_service::query(con, props.into_inner())
         .await
         .map_err(report_postgres_err)?;
 
@@ -825,18 +866,18 @@ pub async fn user_view(
         resp_users.push(fill_user(con, u).await?);
     }
 
-    Ok(resp_users)
+    Ok(web::Json(resp_users))
 }
 
 pub async fn user_data_view(
-    data: Data,
-    props: request::UserDataViewProps,
-) -> Result<Vec<response::UserData>, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::UserDataViewProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
     // api key verification required
     let _ = get_api_key_if_current_noverify(con, &props.api_key).await?;
     // get user_datas
-    let user_datas = user_data_service::query(con, props)
+    let user_datas = user_data_service::query(con, props.into_inner())
         .await
         .map_err(report_postgres_err)?;
 
@@ -845,18 +886,18 @@ pub async fn user_data_view(
         resp_user_datas.push(fill_user_data(con, u).await?);
     }
 
-    Ok(resp_user_datas)
+    Ok(web::Json(resp_user_datas))
 }
 
 pub async fn email_view(
-    data: Data,
-    props: request::EmailViewProps,
-) -> Result<Vec<response::Email>, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::EmailViewProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
     // api key verification required
     let _ = get_api_key_if_current_noverify(con, &props.api_key).await?;
     // get emails
-    let emails = email_service::query(con, props)
+    let emails = email_service::query(con, props.into_inner())
         .await
         .map_err(report_postgres_err)?;
 
@@ -866,18 +907,18 @@ pub async fn email_view(
         resp_emails.push(fill_email(con, u).await?);
     }
 
-    Ok(resp_emails)
+    Ok(web::Json(resp_emails))
 }
 
 pub async fn password_view(
-    data: Data,
-    props: request::PasswordViewProps,
-) -> Result<Vec<response::Password>, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::PasswordViewProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
     // api key verification required
     let _ = get_api_key_if_current_noverify(con, &props.api_key).await?;
     // get passwords
-    let passwords = password_service::query(con, props)
+    let passwords = password_service::query(con, props.into_inner())
         .await
         .map_err(report_postgres_err)?;
 
@@ -887,18 +928,18 @@ pub async fn password_view(
         resp_passwords.push(fill_password(con, u).await?);
     }
 
-    Ok(resp_passwords)
+    Ok(web::Json(resp_passwords))
 }
 
 pub async fn api_key_view(
-    data: Data,
-    props: request::ApiKeyViewProps,
-) -> Result<Vec<response::ApiKey>, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::ApiKeyViewProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
     // api key verification required
     let _ = get_api_key_if_current_noverify(con, &props.api_key).await?;
     // get users
-    let api_keys = api_key_service::query(con, props)
+    let api_keys = api_key_service::query(con, props.into_inner())
         .await
         .map_err(report_postgres_err)?;
 
@@ -908,14 +949,14 @@ pub async fn api_key_view(
         resp_api_keys.push(fill_api_key(con, u, None).await?);
     }
 
-    Ok(resp_api_keys)
+    Ok(web::Json(resp_api_keys))
 }
 
 // special internal api
 pub async fn get_user_by_id(
-    data: Data,
-    props: request::GetUserByIdProps,
-) -> Result<response::User, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::GetUserByIdProps>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
 
     let user = user_service::get_by_user_id(con, props.user_id)
@@ -923,13 +964,13 @@ pub async fn get_user_by_id(
         .map_err(report_postgres_err)?
         .ok_or(response::AuthError::UserNonexistent)?;
 
-    fill_user(con, user).await
+    Ok(web::Json(fill_user(con, user).await?))
 }
 
 pub async fn get_user_by_api_key_if_valid(
-    data: Data,
-    props: request::GetUserByApiKeyIfValid,
-) -> Result<response::User, response::AuthError> {
+    data: web::Data<Data>,
+    props: web::Json<request::GetUserByApiKeyIfValid>,
+) -> Result<impl Responder, AppError> {
     let con = &mut *data.db.lock().await;
 
     let api_key = get_api_key_if_valid(con, &props.api_key).await?;
@@ -939,5 +980,5 @@ pub async fn get_user_by_api_key_if_valid(
         .map_err(report_postgres_err)?
         .ok_or(response::AuthError::UserNonexistent)?;
 
-    fill_user(con, user).await
+    Ok(web::Json(fill_user(con, user).await?))
 }
