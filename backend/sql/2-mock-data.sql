@@ -8,7 +8,7 @@
 -- user: gamma@example.com 
 -- pass: Boolean500
 
-\c auth
+\c authenticator
 
 INSERT INTO user_t(
   creation_time

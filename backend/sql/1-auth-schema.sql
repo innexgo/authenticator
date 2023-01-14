@@ -4,8 +4,8 @@
 -- Creator User Id (if applicable)
 -- Everything else
 
-CREATE DATABASE auth;
-\c auth;
+CREATE DATABASE authenticator;
+\c authenticator;
 
 drop table if exists user_t cascade;
 create table user_t(

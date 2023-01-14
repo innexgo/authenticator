@@ -20,8 +20,8 @@ import ResetPasswordPage from './pages/ResetPassword';
 // other pages
 import Account from './pages/Account';
 
-import LightAdaptedIcon from "./img/atlas_icon_light.png";
-import DarkAdaptedIcon from "./img/atlas_icon_dark.svg";
+import DarkAdaptedIcon from "./img/innexgo_transparent_icon.png";
+import LightAdaptedIcon from "./img/innexgo_onyx_transparent.png";
 
 // Bootstrap CSS & JS
 import './style/style.scss';
