@@ -92,7 +92,7 @@ function Login(props: LoginProps) {
                 </button>
               </OverlayTrigger>
             </div>
-            <LoginForm branding={branding} onSuccess={setApiKey} srcHost={srcUrl.host} />
+            <LoginForm branding={branding} onSuccess={setApiKey} srcOrigin={srcUrl.origin} />
           </Card.Body>
         </Card>
       </div>

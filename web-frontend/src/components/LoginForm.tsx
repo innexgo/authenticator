@@ -11,7 +11,7 @@ import { isErr, unwrap } from '@innexgo/frontend-common';
 interface LoginFormProps {
   branding: Branding,
   onSuccess: (apiKey: ApiKey) => void
-  srcHost?: string,
+  srcOrigin?: string,
 }
 
 function LoginForm(props: LoginFormProps) {
@@ -63,7 +63,7 @@ function LoginForm(props: LoginFormProps) {
     }
     let apiInfo = unwrap(maybeApiInfo);
 
-    if (props.srcHost && !apiInfo.permittedSources.includes(props.srcHost)) {
+    if (props.srcOrigin && !apiInfo.permittedOrigins.includes(props.srcOrigin)) {
       setStatus("The site you're trying to log into doesn't support this authentication method");
       return;
     }

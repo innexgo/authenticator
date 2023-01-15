@@ -234,8 +234,9 @@ pub async fn info(data: web::Data<Data>) -> Result<impl Responder, AppError> {
         version_major: crate::VERSION_MAJOR,
         version_minor: crate::VERSION_MINOR,
         version_rev: crate::VERSION_REV,
-        site_external_url: data.site_external_url.clone(),
-        permitted_sources: data.permitted_sources.clone(),
+        app_pub_api_href: format!("{}/public/", data.app_pub_origin),
+        app_authenticator_href: format!("{}/login", data.app_pub_origin),
+        permitted_origins: data.permitted_origins.clone(),
     }));
 }
 
@@ -381,7 +382,7 @@ pub async fn send_parent_permission_email(
     mail_service: &MailService,
     target_email: &str,
     user_name: &str,
-    site_external_url: &str,
+    app_pub_origin: &str,
     verification_challenge_key: &str,
 ) -> Result<(), AppError> {
     let _ = mail_service
@@ -389,18 +390,18 @@ pub async fn send_parent_permission_email(
             request_id: 0,
             destination: target_email.to_owned(),
             topic: "parent_permission".to_owned(),
-            title: format!("{}: Parent Permission For {}", site_external_url, user_name),
+            title: format!("{}: Parent Permission For {}", app_pub_origin, user_name),
             content: [
                 &format!(
           "<p>Your child, <code>{}</code>, has requested permission to use: <code>{}</code></p>",
-          user_name, site_external_url
+          user_name, app_pub_origin
         ),
                 "<p>If you did not make this request, then feel free to ignore.</p>",
                 "<p>This link is valid for up to 15 minutes.</p>",
                 "<p>Do not share this link with others.</p>",
                 &format!(
           "<p>Verification link: {}/parent_permission_confirm?verificationChallengeKey={}</p>",
-          site_external_url, verification_challenge_key
+          app_pub_origin, verification_challenge_key
         ),
             ]
             .join(""),
@@ -415,7 +416,7 @@ pub async fn send_email_verification_email(
     mail_service: &MailService,
     target_email: &str,
     user_name: &str,
-    site_external_url: &str,
+    app_pub_origin: &str,
     verification_challenge_key: &str,
 ) -> Result<(), AppError> {
     let _ = mail_service
@@ -423,7 +424,7 @@ pub async fn send_email_verification_email(
             request_id: 0,
             destination: target_email.to_owned(),
             topic: "verification_challenge".to_owned(),
-            title: format!("{}: Email Verification", site_external_url),
+            title: format!("{}: Email Verification", app_pub_origin),
             content: [
                 &format!(
                     "<p>This email has been sent to verify for: <code>{}</code> </p>",
@@ -434,7 +435,7 @@ pub async fn send_email_verification_email(
                 "<p>Do not share this link with others.</p>",
                 &format!(
                     "<p>Verification link: {}/email_confirm?verificationChallengeKey={}</p>",
-                    site_external_url, verification_challenge_key
+                    app_pub_origin, verification_challenge_key
                 ),
             ]
             .join(""),
@@ -489,7 +490,7 @@ pub async fn verification_challenge_new(
             &data.mail_service,
             &props.email,
             &user_data.realname,
-            &data.site_external_url,
+            &data.app_pub_origin,
             &verification_challenge_key,
         )
         .await?;
@@ -498,7 +499,7 @@ pub async fn verification_challenge_new(
             &data.mail_service,
             &props.email,
             &user_data.realname,
-            &data.site_external_url,
+            &data.app_pub_origin,
             &verification_challenge_key,
         )
         .await?;
@@ -725,7 +726,7 @@ pub async fn password_reset_new(
             request_id: 0,
             destination: props.email.clone(),
             topic: "password_reset".to_owned(),
-            title: format!("{}: Password Reset", &data.site_external_url),
+            title: format!("{}: Password Reset", &data.app_pub_origin),
             content: [
                 "<p>Requested password reset service: </p>",
                 "<p>If you did not make this request, then feel free to ignore.</p>",
@@ -733,7 +734,7 @@ pub async fn password_reset_new(
                 "<p>Do not share this link with others.</p>",
                 &format!(
                     "<p>Password change link: {}/reset_password?resetKey={}</p>",
-                    &data.site_external_url, raw_key
+                    &data.app_pub_origin, raw_key
                 ),
             ]
             .join(""),

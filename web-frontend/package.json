@@ -4,8 +4,8 @@
   "private": true,
   "dependencies": {
     "@innexgo/common-react-components": "^0.1.21",
-    "@innexgo/frontend-auth-api": "^0.2.48",
-    "@innexgo/frontend-common": "^0.0.16",
+    "@innexgo/frontend-auth-api": "^0.2.50",
+    "@innexgo/frontend-common": "^0.0.17",
     "@popperjs/core": "^2.11.6",
     "@types/node": "^18.11.18",
     "@types/react": "^18.0.26",
