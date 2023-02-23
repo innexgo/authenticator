@@ -10,15 +10,15 @@ rand = "0.8.5"
 tokio-postgres = "0.7.7"
 rust-argon2 = "1.0.0"
 sha2 = "0.10.6"
-reqwest = { version = "0.11.13", features = ["json"] }
-clap = { version = "4.1.1", features = ["derive"] }
-tokio = { version = "1.24.1", features = ["full"] }
+reqwest = { version = "0.11.14", features = ["json"] }
+clap = { version = "4.1.6", features = ["derive"] }
+tokio = { version = "1.25.0", features = ["full"] }
 serde = { version = "1.0.152", features = ["derive"] }
-serde_json = "1.0.91"
+serde_json = "1.0.93"
 auth-service-api = {version = "*", git = "https://github.com/innexgo/auth-service-api" }
 mail-service-api = {version = "*", git = "https://github.com/innexgo/mail-service-api", features=["client"]}
 base64-url = "1.4.13"
-actix-web = "4.2.1"
+actix-web = "4.3.0"
 env_logger = "0.10.0"
 log = "0.4.17"
 actix-cors = "0.6.4"
