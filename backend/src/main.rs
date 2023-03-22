@@ -33,7 +33,9 @@ struct Opts {
     #[clap(long)]
     port: u16,
     #[clap(long)]
-    app_pub_origin: String,
+    app_pub_origin_web: String,
+    #[clap(long)]
+    app_pub_origin_api: String,
     #[clap(long)]
     database_url: String,
     #[clap(long)]
@@ -47,7 +49,8 @@ pub struct Data {
     pub db: Arc<Mutex<Client>>,
     pub mail_service: MailService,
     pub permitted_origins: Vec<String>,
-    pub app_pub_origin: String,
+    pub app_pub_origin_web: String,
+    pub app_pub_origin_api: String,
 }
 
 #[tokio::main]
@@ -58,7 +61,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
         port,
         database_url,
         mail_service_url,
-        app_pub_origin,
+        app_pub_origin_web,
+        app_pub_origin_api,
         permitted_origins,
     } = Opts::parse();
 
@@ -86,7 +90,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
         db: Arc::new(Mutex::new(client)),
         mail_service: MailService::new(&mail_service_url).await,
         permitted_origins: permitted_origins.split(',').map(|x| x.into()).collect(),
-        app_pub_origin,
+        app_pub_origin_web,
+        app_pub_origin_api,
     };
 
     HttpServer::new(move || {

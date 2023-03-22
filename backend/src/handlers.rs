@@ -234,8 +234,8 @@ pub async fn info(data: web::Data<Data>) -> Result<impl Responder, AppError> {
         version_major: crate::VERSION_MAJOR,
         version_minor: crate::VERSION_MINOR,
         version_rev: crate::VERSION_REV,
-        app_pub_api_href: format!("{}/public/", data.app_pub_origin),
-        app_authenticator_href: format!("{}/login", data.app_pub_origin),
+        app_pub_api_href: format!("{}/public/", data.app_pub_origin_api),
+        app_authenticator_href: format!("{}/login", data.app_pub_origin_web),
         permitted_origins: data.permitted_origins.clone(),
     }));
 }
@@ -490,7 +490,7 @@ pub async fn verification_challenge_new(
             &data.mail_service,
             &props.email,
             &user_data.realname,
-            &data.app_pub_origin,
+            &data.app_pub_origin_web,
             &verification_challenge_key,
         )
         .await?;
@@ -499,7 +499,7 @@ pub async fn verification_challenge_new(
             &data.mail_service,
             &props.email,
             &user_data.realname,
-            &data.app_pub_origin,
+            &data.app_pub_origin_web,
             &verification_challenge_key,
         )
         .await?;
@@ -726,7 +726,7 @@ pub async fn password_reset_new(
             request_id: 0,
             destination: props.email.clone(),
             topic: "password_reset".to_owned(),
-            title: format!("{}: Password Reset", &data.app_pub_origin),
+            title: format!("{}: Password Reset", &data.app_pub_origin_web),
             content: [
                 "<p>Requested password reset service: </p>",
                 "<p>If you did not make this request, then feel free to ignore.</p>",
@@ -734,7 +734,7 @@ pub async fn password_reset_new(
                 "<p>Do not share this link with others.</p>",
                 &format!(
                     "<p>Password change link: {}/reset_password?resetKey={}</p>",
-                    &data.app_pub_origin, raw_key
+                    &data.app_pub_origin_web, raw_key
                 ),
             ]
             .join(""),
