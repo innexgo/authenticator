@@ -1,2 +1,5 @@
 [target.aarch64-unknown-linux-gnu]
-image = "rustembedded/cross:aarch64-unknown-linux-gnu-0.1.16"
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update && apt-get install --assume-yes libssl-dev:$CROSS_DEB_ARCH"
+]
