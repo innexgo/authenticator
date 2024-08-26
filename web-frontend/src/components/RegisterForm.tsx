@@ -2,8 +2,8 @@ import { Button, Form } from 'react-bootstrap'
 import { Formik, FormikHelpers, FormikErrors } from 'formik'
 import { userNew, ApiKey, apiKeyNewWithUsername } from '@innexgo/frontend-auth-api';
 import { isErr } from '@innexgo/frontend-common';
-import parse from 'date-fns/parse';
-import format from 'date-fns/format';
+import {parse} from 'date-fns/parse';
+import {format} from 'date-fns/format';
 
 type RegisterFormProps = {
   tosUrl?: string,

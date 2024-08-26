@@ -2,8 +2,8 @@ import { Formik, FormikHelpers, FormikErrors } from 'formik'
 import { Button, Form, } from 'react-bootstrap'
 import { isErr } from '@innexgo/frontend-common';
 import { ApiKey, UserData, userDataNew, } from '@innexgo/frontend-auth-api';
-import parse from 'date-fns/parse';
-import format from 'date-fns/format';
+import  {parse } from 'date-fns/parse';
+import {format } from 'date-fns/format';
 
 const DATEFORMAT = 'yyyy-MM-dd';
 

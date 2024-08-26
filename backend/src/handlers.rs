@@ -8,7 +8,7 @@ use actix_web::ResponseError;
 use auth_service_api::request;
 use auth_service_api::response;
 use auth_service_api::response::AuthError;
-use reqwest::StatusCode;
+use actix_web::http::StatusCode;
 
 use super::api_key_service;
 use super::db_types::*;

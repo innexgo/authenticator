@@ -2,13 +2,13 @@ import React from 'react';
 import { Table } from 'react-bootstrap';
 import { Action, DisplayModal } from '@innexgo/common-react-components';
 import { Pencil, Lock, EnvelopePlus, BoxArrowRight } from 'react-bootstrap-icons';
-import format from 'date-fns/format';
+import {format} from 'date-fns/format';
 import { UserData, Email, ApiKey } from '@innexgo/frontend-auth-api';
 
 import EditUserDataForm from '../components/EditUserDataForm';
 import SendVerificationChallengeForm from '../components/SendVerificationChallengeForm';
 import ManagePassword from '../components/ManagePassword';
-import differenceInYears from 'date-fns/esm/fp/differenceInYears/index';
+import {differenceInYears} from 'date-fns/differenceInYears';
 
 const ManageUserData = (props: {
   userData: UserData,
