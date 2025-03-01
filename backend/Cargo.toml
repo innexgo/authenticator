@@ -7,18 +7,18 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.5"
-tokio-postgres = "0.7.11"
+tokio-postgres = "0.7.13"
 rust-argon2 = "2.1.0"
 sha2 = "0.10.8"
-reqwest = { version = "0.12.7", features = ["json"] }
-clap = { version = "4.5.16", features = ["derive"] }
-tokio = { version = "1.39.3", features = ["full"] }
-serde = { version = "1.0.209", features = ["derive"] }
-serde_json = "1.0.127"
+reqwest = { version = "0.12.12", features = ["json"] }
+clap = { version = "4.5.31", features = ["derive"] }
+tokio = { version = "1.43.0", features = ["full"] }
+serde = { version = "1.0.218", features = ["derive"] }
+serde_json = "1.0.139"
 auth-service-api = {version = "*", git = "https://github.com/innexgo/auth-service-api" }
 mail-service-api = {version = "*", git = "https://github.com/innexgo/mail-service-api", features=["client"]}
 base64-url = "3.0.0"
 actix-web = "4.9.0"
-env_logger = "0.11.5"
-log = "0.4.22"
+env_logger = "0.11.6"
+log = "0.4.26"
 actix-cors = "0.7.0"
